@@ -30,11 +30,6 @@ class Arguments(object):
         self._dir_sentences = os.path.join(self._dir_root, 'sen')
         self._dir_voice = os.path.join(self._dir_root, 'voice')
         self._dir_voice_raw = os.path.join(self._dir_voice, 'raw')
-        self._dir_voice_raw_test = os.path.join(self._dir_voice_raw, 'test')
-        self._dir_voice_raw_training = os.path.join(
-            self._dir_voice_raw, 'training')
-        self._dir_voice_raw_validate = os.path.join(
-            self._dir_voice_raw, 'validate')
         self._dir_voice_target = os.path.join(self._dir_voice, rate_name)
         self._dir_voice_target_test = os.path.join(
             self._dir_voice_target, 'test')
@@ -71,9 +66,6 @@ class Arguments(object):
         Arguments.make_dir(self._dir_sentences)
         Arguments.make_dir(self._dir_voice)
         Arguments.make_dir(self._dir_voice_raw)
-        Arguments.make_dir(self._dir_voice_raw_test)
-        Arguments.make_dir(self._dir_voice_raw_training)
-        Arguments.make_dir(self._dir_voice_raw_validate)
         Arguments.make_dir(self._dir_voice_target)
         Arguments.make_dir(self._dir_voice_target_test)
         Arguments.make_dir(self._dir_voice_target_training)
@@ -186,14 +178,7 @@ def speak(args):
             if not os.path.isfile(source_path):
                 continue
 
-            if is_name_for_validate(target_name):
-                target_dir = args._dir_voice_raw_validate
-            elif is_name_for_test(target_name):
-                target_dir = args._dir_voice_raw_test
-            else:
-                target_dir = args._dir_voice_raw_training
-
-            target_path = os.path.join(target_dir, target_name)
+            target_path = os.path.join(args._dir_voice_raw, target_name)
 
             if os.path.isfile(target_path):
                 continue
@@ -207,35 +192,36 @@ def speak(args):
 def resample_voices(args):
     """
     """
-    dir_pairs = [
-        (args._dir_voice_raw_test, args._dir_voice_target_test),
-        (args._dir_voice_raw_training, args._dir_voice_target_training),
-        (args._dir_voice_raw_validate, args._dir_voice_target_validate)]
+    source_dir = args._dir_voice_raw
 
-    for dirs in dir_pairs:
-        source_dir, target_dir = dirs[0], dirs[1]
+    print 'resampling voices'
 
-        print 'resampling voices: {} -> {}'.format(source_dir, target_dir)
+    for caf in os.listdir(source_dir):
+        if not os.path.isfile(os.path.join(source_dir, caf)):
+            continue
 
-        for caf in os.listdir(source_dir):
-            if not os.path.isfile(os.path.join(source_dir, caf)):
-                continue
+        if not caf.endswith('.caf'):
+            continue
 
-            if not caf.endswith('.caf'):
-                continue
+        name = caf[:-4]
 
-            name = caf[:-4]
+        if is_name_for_test(name):
+            target_dir = args._dir_voice_target_test
+        elif is_name_for_validate(name):
+            target_dir = args._dir_voice_target_validate
+        else:
+            target_dir = args._dir_voice_target_training
 
-            source_path = os.path.join(source_dir, caf)
-            target_path = os.path.join(target_dir, name + '.wav')
+        source_path = os.path.join(source_dir, caf)
+        target_path = os.path.join(target_dir, name + '.wav')
 
-            if os.path.isfile(target_path):
-                continue
+        if os.path.isfile(target_path):
+            continue
 
-            command = "ffmpeg -i {} -acodec pcm_f32le -ac 1 -ar {} {}" \
-                .format(source_path, args._sample_rate, target_path)
+        command = "ffmpeg -i {} -acodec pcm_f32le -ac 1 -ar {} {}" \
+            .format(source_path, args._sample_rate, target_path)
 
-            os.system(command)
+        os.system(command)
 
 
 def resample_bg(args):
