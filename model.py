@@ -1,7 +1,6 @@
 """
 """
 import numpy as np
-import os.path as path
 import tensorflow as tf
 
 
@@ -80,8 +79,7 @@ class VadModel(object):
         # regularization losses
 
         # cost
-        valid_size = self._training_sequence_size - self._srt_delay_size
-        total_size = tf.cast(batch_size * valid_size, tf.float32)
+        total_size = tf.reduce_sum(wgts)
 
         self._loss = tf.reduce_sum(total_loss) / total_size
 
@@ -109,10 +107,7 @@ class VadModel(object):
         self._session = tf.Session()
 
         # restore check point
-        can_restore = self._checkpoint_source_path is not None and \
-            path.isfile(self._checkpoint_source_path)
-
-        if can_restore:
+        if self._checkpoint_source_path is not None:
             tf.train.Saver().restore(
                 self._session, self._checkpoint_source_path)
         else:
