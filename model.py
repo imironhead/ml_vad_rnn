@@ -41,12 +41,11 @@ class VadModel(object):
             tf.int32, [None, self._training_sequence_size])
 
         #
-        source = self.build_nn_before_rnn(params, self._source_data)
+        source, last_size = self.build_nn_before_rnn(params, self._source_data)
 
         # split source to feature list
         source = tf.reshape(
-            source,
-            [-1, self._training_sequence_size * self._wav_cepstrum_size])
+            source, [-1, self._training_sequence_size * last_size])
 
         source = tf.split(1, self._training_sequence_size, source)
 
@@ -141,7 +140,7 @@ class VadModel(object):
 
             size = dim
 
-        return source
+        return source, size
 
     def build_nn_after_rnn(self, params, source):
         """
