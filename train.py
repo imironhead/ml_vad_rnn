@@ -47,7 +47,7 @@ def train(params, model):
         train_wav = WavFeatures()
         train_srt = SrtFeatures()
 
-        train_wav.load(data_wav_path)
+        train_wav.load(data_wav_path, numcep=params.get_wav_cepstrum_size())
         train_srt.load(data_srt_path, params.get_wav_sample_rate())
 
         for step in xrange(params.get_epoch_size()):
@@ -96,7 +96,7 @@ def train(params, model):
         test_wav = WavFeatures()
         test_srt = SrtFeatures()
 
-        test_wav.load(data_wav_path)
+        test_wav.load(data_wav_path, numcep=params.get_wav_cepstrum_size())
         test_srt.load(data_srt_path, params.get_wav_sample_rate())
 
         head = 0
