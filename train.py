@@ -34,6 +34,13 @@ def train(params, model):
     data_dir_test = params.get_dir_cue_test()
     data_wav_test = collect_file_names(data_dir_test, 'wav')
 
+    batch_size = params.get_batch_size()
+    training_sequence_size = params.get_rnn_sequence_length()
+    srt_delay_size = params.get_srt_delay_size()
+    wav_window_size = params.get_wav_window_size()
+    wav_window_step = params.get_wav_window_step()
+    wav_sample_rate = params.get_wav_sample_rate()
+
     for epoch in xrange(params.get_epoch_count()):
         idx_training_data = np.random.randint(0, len(data_wav_training))
 
@@ -47,16 +54,14 @@ def train(params, model):
         train_wav = WavFeatures()
         train_srt = SrtFeatures()
 
-        train_wav.load(data_wav_path, numcep=params.get_wav_cepstrum_size())
-        train_srt.load(data_srt_path, params.get_wav_sample_rate())
+        train_wav.load(
+            data_wav_path,
+            window_size=float(wav_window_size) / float(wav_sample_rate),
+            window_step=float(wav_window_step) / float(wav_sample_rate),
+            numcep=params.get_wav_cepstrum_size())
+        train_srt.load(data_srt_path, wav_sample_rate)
 
         for step in xrange(params.get_epoch_size()):
-            batch_size = params.get_batch_size()
-            training_sequence_size = params.get_rnn_sequence_length()
-            srt_delay_size = params.get_srt_delay_size()
-            wav_window_size = params.get_wav_window_size()
-            wav_window_step = params.get_wav_window_step()
-
             # build chunks
             wav_batch = [[] for x in xrange(batch_size)]
             srt_batch = [[] for x in xrange(batch_size)]
@@ -97,8 +102,12 @@ def train(params, model):
         test_wav = WavFeatures()
         test_srt = SrtFeatures()
 
-        test_wav.load(data_wav_path, numcep=params.get_wav_cepstrum_size())
-        test_srt.load(data_srt_path, params.get_wav_sample_rate())
+        test_wav.load(
+            data_wav_path,
+            window_size=float(wav_window_size) / float(wav_sample_rate),
+            window_step=float(wav_window_step) / float(wav_sample_rate),
+            numcep=params.get_wav_cepstrum_size())
+        test_srt.load(data_srt_path, wav_sample_rate)
 
         head = 0
         tail = test_wav.feature_size()
