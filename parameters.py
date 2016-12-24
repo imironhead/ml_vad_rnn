@@ -71,17 +71,16 @@ class Parameters(object):
         self._nn_hidden_layer_before_rnn = param['head_hidden_layers']
         self._nn_hidden_layer_after_rnn = param['tail_hidden_layers']
 
-        self._checkpoint_source_path = './checkpoints/'
-        self._checkpoint_target_path = './checkpoints/model_{}.ckpt'.format(
+        self._checkpoint_source_path = './checkpoints/{}/'.format(
+            self._session_name)
+        self._checkpoint_target_path = './checkpoints/{}/model.ckpt'.format(
             self._session_name)
         self._tensorboard_log_root = './tensorboards/'
         self._tensorboard_log_path = './tensorboards/{}/'.format(
             self._session_name)
 
         Parameters.make_dir(self._checkpoint_source_path)
-        Parameters.make_dir(self._checkpoint_target_path)
         Parameters.make_dir(self._tensorboard_log_root)
-        Parameters.make_dir(self._tensorboard_log_path)
 
         self._dir_cue_training = './datasets/cue/{}/training/'.format(
             self._wav_sample_rate)
