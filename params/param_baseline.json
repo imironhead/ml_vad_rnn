@@ -3,6 +3,7 @@
   "model_name": "basic",
   "epoch_size": 1000,
   "epoch_count": 100000,
+  "max_steps": 1000000,
   "batch_size": 16,
   "optimizer": "adam",
   "learning_rate": 0.00001,

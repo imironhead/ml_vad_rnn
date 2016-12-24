@@ -76,12 +76,13 @@ def train(params, model):
                     head, tail, srt_delay_size,
                     wav_window_size, wav_window_step)
 
-            summary = (step % 100 == 0)
+            loss, accc, gstep = model.train(wav_batch, srt_batch)
 
-            losss, accc = model.train(wav_batch, srt_batch, summary)
+            if gstep % 100 == 0:
+                print "step:{}, loss: {}, accc: {}".format(gstep, loss, accc)
 
-            if summary:
-                print "loss: {}, accc: {}".format(losss, accc)
+            if gstep >= params.get_max_steps():
+                return
 
         # test set
         idx_test_data = np.random.randint(0, len(data_wav_test))

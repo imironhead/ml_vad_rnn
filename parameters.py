@@ -46,6 +46,7 @@ class Parameters(object):
         self._model_name = param['model_name']
         self._epoch_size = param['epoch_size']
         self._epoch_count = param['epoch_count']
+        self._max_steps = param['max_steps']
         self._rnn_cell = param['rnn_cell']
         self._rnn_unit_num = param['rnn_unit_num']
         self._rnn_sequence_length = param['rnn_sequence_length']
@@ -115,6 +116,11 @@ class Parameters(object):
         """
         """
         return self._epoch_count
+
+    def get_max_steps(self):
+        """
+        """
+        return self._max_steps
 
     def get_batch_size(self):
         """

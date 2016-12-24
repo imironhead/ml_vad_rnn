@@ -186,7 +186,7 @@ class VadModel(object):
         saver.save(self._session, self._checkpoint_target_path,
                    global_step=self._global_step)
 
-    def train(self, source_wav, target_srt, summary=False):
+    def train(self, source_wav, target_srt):
         """
         """
         sample_wgt = np.ones([self._training_sequence_size])
@@ -217,12 +217,12 @@ class VadModel(object):
             self._target_data: target_srt
         }
 
-        step, summaries, loss, accuracy, _ = self._session.run(fetches, feed)
+        gstep, summaries, loss, accuracy, _ = self._session.run(fetches, feed)
 
-        if summary:
-            self._reporter.add_summary(summaries, step)
+        if gstep % 100 == 0:
+            self._reporter.add_summary(summaries, gstep)
 
-        return loss, accuracy
+        return loss, accuracy, gstep
 
     def test(self, source_wav, target_srt):
         """
