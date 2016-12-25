@@ -53,6 +53,7 @@ class Parameters(object):
         self._batch_size = param['batch_size']
         self._optimizer = param['optimizer']
         self._learning_rate = param['learning_rate']
+        self._regularization_lambda = param['regularization_lambda']
 
         self._wav_sample_rate = param['wav_sample_rate']
         self._wav_feature = param['wav_feature']
@@ -136,6 +137,11 @@ class Parameters(object):
         """
         """
         return self._learning_rate
+
+    def get_regularization_lambda(self):
+        """
+        """
+        return self._regularization_lambda
 
     def get_rnn_cell(self):
         """

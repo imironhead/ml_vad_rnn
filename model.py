@@ -122,6 +122,11 @@ class VadModel(object):
     def build_nn_before_rnn(self, params, source):
         """
         """
+        initializer_w = tf.contrib.layers.xavier_initializer()
+        initializer_b = tf.constant_initializer(1.0)
+        regularizer_w = tf.contrib.layers.l2_regularizer(
+            params.get_regularization_lambda())
+
         dims = params.get_hidden_layer_dim_before_rnn()
         size = self._wav_cepstrum_size
 
@@ -129,11 +134,19 @@ class VadModel(object):
             source = tf.reshape(source, [-1, self._wav_cepstrum_size])
 
         for idx, dim in enumerate(dims):
-            source = tf.matmul(
-                source, tf.get_variable('bw{}'.format(idx), [size, dim]))
+            w = tf.get_variable(
+                'bw{}'.format(idx),
+                [size, dim],
+                initializer=initializer_w,
+                regularizer=regularizer_w)
+
+            source = tf.matmul(source, w)
 
             if params.should_add_bias_before_rnn():
-                source = source + tf.get_variable('bb{}'.format(idx), [dim])
+                b = tf.get_variable(
+                    'bb{}'.format(idx), [dim], initializer=initializer_b)
+
+                source = source + b
 
             if params.should_use_relu_before_rnn() and idx + 1 < len(dims):
                 source = tf.nn.relu(source)
@@ -145,6 +158,11 @@ class VadModel(object):
     def build_nn_after_rnn(self, params, source):
         """
         """
+        initializer_w = tf.contrib.layers.xavier_initializer()
+        initializer_b = tf.constant_initializer(1.0)
+        regularizer_w = tf.contrib.layers.l2_regularizer(
+            params.get_regularization_lambda())
+
         dims = params.get_hidden_layer_dim_after_rnn()
         size = params.get_rnn_unit_num()
 
@@ -155,11 +173,19 @@ class VadModel(object):
             dims.append(2)
 
         for idx, dim in enumerate(dims):
-            source = tf.matmul(
-                source, tf.get_variable('aw{}'.format(idx), [size, dim]))
+            w = tf.get_variable(
+                'aw{}'.format(idx),
+                [size, dim],
+                initializer=initializer_w,
+                regularizer=regularizer_w)
+
+            source = tf.matmul(source, w)
 
             if params.should_add_bias_after_rnn():
-                source = source + tf.get_variable('ab{}'.format(idx), [dim])
+                b = tf.get_variable(
+                    'ab{}'.format(idx), [dim], initializer=initializer_b)
+
+                source = source + b
 
             if params.should_use_relu_after_rnn() and idx + 1 < len(dims):
                 source = tf.nn.relu(source)
