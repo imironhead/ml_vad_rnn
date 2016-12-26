@@ -53,8 +53,7 @@ class VadModel(object):
         batch_size = tf.shape(self._source_data)[0]
 
         # RNN cell factory
-        rnn_cell = tf.nn.rnn_cell.BasicLSTMCell(
-            params.get_rnn_unit_num(), state_is_tuple=True)
+        rnn_cell = params.get_rnn_cell()
 
         self._state = rnn_cell.zero_state(batch_size, tf.float32)
 

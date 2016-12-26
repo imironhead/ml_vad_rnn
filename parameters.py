@@ -3,6 +3,7 @@
 import json
 import os
 import sys
+import tensorflow as tf
 
 
 class Parameters(object):
@@ -40,16 +41,13 @@ class Parameters(object):
     def __init__(self):
         """
         """
-        param = Parameters.arg()
+        self._params = param = Parameters.arg()
 
         self._session_name = param['session_name']
         self._model_name = param['model_name']
         self._epoch_size = param['epoch_size']
         self._epoch_count = param['epoch_count']
         self._max_steps = param['max_steps']
-        self._rnn_cell = param['rnn_cell']
-        self._rnn_unit_num = param['rnn_unit_num']
-        self._rnn_sequence_length = param['rnn_sequence_length']
         self._batch_size = param['batch_size']
         self._optimizer = param['optimizer']
         self._learning_rate = param['learning_rate']
@@ -146,17 +144,29 @@ class Parameters(object):
     def get_rnn_cell(self):
         """
         """
-        return self._rnn_cell
+        if self._params['rnn_cell'] == 'basiclstm':
+            rnn_cell = tf.nn.rnn_cell.BasicLSTMCell(
+                self._params['rnn_unit_num'],
+                forget_bias=self._params['lstm_forget_bias'],
+                state_is_tuple=True)
+        elif self._params['rnn_cell'] == 'lstm':
+            rnn_cell = tf.nn.rnn_cell.LSTMCell(
+                self._params['rnn_unit_num'],
+                use_peepholes=self._params['lstm_use_peephole'],
+                forget_bias=self._params['lstm_forget_bias'],
+                state_is_tuple=True)
+
+        return rnn_cell
 
     def get_rnn_unit_num(self):
         """
         """
-        return self._rnn_unit_num
+        return self._params['rnn_unit_num']
 
     def get_rnn_sequence_length(self):
         """
         """
-        return self._rnn_sequence_length
+        return self._params['rnn_sequence_length']
 
     def get_wav_sample_rate(self):
         """
@@ -242,11 +252,6 @@ class Parameters(object):
         """
         """
         return self._optimizer == 'adam'
-
-    def should_use_lstm(self):
-        """
-        """
-        return self._rnn_cell == 'lstm'
 
     def should_use_mfcc(self):
         """
