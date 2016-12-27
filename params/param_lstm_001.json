@@ -1,5 +1,5 @@
 {
-  "session_name": "lstm_000",
+  "session_name": "lstm_001",
   "model_name": "basic",
   "epoch_size": 1000,
   "epoch_count": 100000,
