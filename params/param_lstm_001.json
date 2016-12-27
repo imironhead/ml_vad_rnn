@@ -1,7 +1,7 @@
 {
   "session_name": "lstm_001",
   "model_name": "basic",
-  "epoch_size": 1000,
+  "epoch_size": 125,
   "epoch_count": 100000,
   "max_steps": 1000000,
   "batch_size": 128,
