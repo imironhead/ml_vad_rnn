@@ -55,6 +55,10 @@ class Arguments(object):
         self._dir_cue_target_test = os.path.join(
             self._dir_cue_target, 'test')
 
+        self._max_training_cues = 8000
+        self._max_validate_cues = 500
+        self._max_test_cues = 500
+
         self._path_transcripts = os.path.join(self._dir_root, 'transcript.txt')
 
         if not os.path.isdir(self._dir_root):
@@ -259,74 +263,91 @@ def resample_bg(args):
         os.system(command)
 
 
-def mix(args):
+def mix(args, movie_dir, path_bgm, path_wav):
     """
     """
-    categories = [[], [], []]
+    _, bgm = wav.read(path_bgm)
+    _, snd = wav.read(path_wav)
 
-    categories[0].append(args._dir_bground_target_training)
-    categories[0].append(args._dir_voice_target_training)
-    categories[0].append(args._dir_cue_target_training)
-    categories[1].append(args._dir_bground_target_validate)
-    categories[1].append(args._dir_voice_target_validate)
-    categories[1].append(args._dir_cue_target_validate)
-    categories[2].append(args._dir_bground_target_test)
-    categories[2].append(args._dir_voice_target_test)
-    categories[2].append(args._dir_cue_target_test)
+    wav_length = len(snd)
+    bgm_length = 4 * wav_length
+
+    if bgm_length > len(bgm):
+        print 'need longer bgm'
+        return
+
+    idx = np.random.randint(0, len(bgm) - bgm_length)
+    bgm = bgm[idx:idx+bgm_length]
+
+    factor = 0.3 * np.random.random()
+
+    middle = 2 * wav_length
+
+    timestamps = []
+
+    for x in xrange(wav_length):
+        bgm[x] = bgm[x] * factor + snd[x]
+        bgm[x + middle] = bgm[x + middle] * factor + snd[x]
+
+    timestamps.append((0, wav_length))
+    timestamps.append((middle, wav_length))
+
+    mov_name = hashlib.md5(bgm).hexdigest()
+
+    target_wav = os.path.join(movie_dir, mov_name + '.wav')
+    target_srt = os.path.join(movie_dir, mov_name + '.srt')
+
+    wav.write(target_wav, args._sample_rate, bgm)
+
+    # srt
+    with open(target_srt, 'w') as srt:
+        for x in xrange(len(timestamps)):
+            time_head = timestamps[x][0]
+            time_tail = timestamps[x][1] + time_head
+            time_head = make_timestamp(time_head, args._sample_rate)
+            time_tail = make_timestamp(time_tail, args._sample_rate)
+
+            srt.write("{}\n".format(x))
+            srt.write("{} --> {}\n".format(time_head, time_tail))
+            srt.write("!@#$%^\n\n")
+
+
+def generate(args):
+    """
+    """
+    categories = [(
+        args._max_training_cues,
+        args._dir_bground_target_training,
+        args._dir_voice_target_training,
+        args._dir_cue_target_training
+    ), (
+        args._max_validate_cues,
+        args._dir_bground_target_validate,
+        args._dir_voice_target_validate,
+        args._dir_cue_target_validate
+    ), (
+        args._max_test_cues,
+        args._dir_bground_target_test,
+        args._dir_voice_target_test,
+        args._dir_cue_target_test
+    )]
 
     for category in categories:
-        sound_dir, voice_dir, movie_dir = category
+        max_cues, sound_dir, voice_dir, movie_dir = category
 
         bgm_names = collect_file_names(sound_dir, 'wav')
         wav_names = collect_file_names(voice_dir, 'wav')
 
         print 'mix category: {}'.format(sound_dir)
 
-        for bgm_name in bgm_names:
-            _, bgm = wav.read(os.path.join(sound_dir, bgm_name))
+        for _ in xrange(max_cues):
+            idx_bgm = np.random.randint(0, len(bgm_names))
+            idx_wav = np.random.randint(0, len(wav_names))
 
-            index = 0
-            timestamps = []
+            path_bgm = os.path.join(sound_dir, bgm_names[idx_bgm])
+            path_wav = os.path.join(voice_dir, wav_names[idx_wav])
 
-            wav_name_indice = np.random.choice(
-                len(wav_names), [len(wav_names)], replace=False)
-
-            for wav_name_index in wav_name_indice:
-                wav_name = wav_names[wav_name_index]
-
-                _, tmp = wav.read(os.path.join(voice_dir, wav_name))
-
-                if index + len(tmp) >= len(bgm):
-                    break
-
-                factor = 0.5 * np.random.random()
-
-                for x in xrange(len(tmp)):
-                    bgm[index + x] = bgm[index + x] * factor + tmp[x]
-
-                timestamps.append((index, len(tmp)))
-
-                index += 2 * len(tmp)
-
-            mov_name = hashlib.md5(bgm).hexdigest()
-
-            target_wav = os.path.join(movie_dir, mov_name + '.wav')
-            target_srt = os.path.join(movie_dir, mov_name + '.srt')
-
-            wav.write(target_wav, args._sample_rate, bgm)
-
-            # srt
-            with open(target_srt, 'w') as srt:
-                for x in xrange(len(timestamps)):
-                    time_head = timestamps[x][0]
-                    time_tail = timestamps[x][1] + time_head
-                    time_head = make_timestamp(time_head, args._sample_rate)
-                    time_tail = make_timestamp(time_tail, args._sample_rate)
-
-                    srt.write("{}\n".format(x))
-                    srt.write("{} --> {}\n".format(time_head, time_tail))
-                    srt.write("!@#$%^\n\n")
-
+            mix(args, movie_dir, path_bgm, path_wav)
 
 if __name__ == "__main__":
     args = Arguments(4000)
@@ -335,4 +356,4 @@ if __name__ == "__main__":
     speak(args)
     resample_voices(args)
     resample_bg(args)
-    mix(args)
+    generate(args)
