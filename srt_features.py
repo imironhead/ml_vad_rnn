@@ -88,8 +88,8 @@ class SrtFeatures(object):
         result = np.zeros([delay + target_len], dtype=np.int32)
 
         while source_idx < source_len and target_idx < target_len:
-            target_b = begin + target_idx * window_step
-            target_e = target_b + window_size
+            target_b = window_step * (begin + target_idx)
+            target_e = window_size + target_b
 
             cue = self._cues[source_idx]
 
