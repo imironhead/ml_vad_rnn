@@ -20,7 +20,7 @@ class Parameters(object):
     def arg():
         """
         """
-        if len(sys.argv) < 2:
+        if len(sys.argv) != 2:
             raise Exception('need parameter file name')
 
         if not os.path.isfile(sys.argv[1]):
@@ -35,12 +35,6 @@ class Parameters(object):
 
         if name != 'param_{}.json'.format(param['session_name']):
             raise Exception('invalid session name')
-
-        if len(sys.argv) == 3:
-            if not os.path.isfile(sys.argv[2]):
-                raise Exception('invalid movie file path')
-
-            param['movie_path'] = sys.argv[2]
 
         return param
 
@@ -101,11 +95,6 @@ class Parameters(object):
             raise Exception('need validate dir')
         if not os.path.isdir(self._dir_cue_test):
             raise Exception('need test dir')
-
-    def get_movie_path(self):
-        """
-        """
-        return self._params['movie_path']
 
     def get_session_name(self):
         """
