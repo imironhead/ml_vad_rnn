@@ -55,31 +55,22 @@ def test(params, model):
         srt_batch = [[] for x in xrange(batch_size)]
 
         for i in xrange(len(indice)):
-            wav_index = indice[i]
+            name, _ = os.path.splitext(data_wav_test[indice[i]])
 
-            # sanity check
-            while True:
-                name, _ = os.path.splitext(data_wav_test[wav_index])
+            data_wav_path = os.path.join(data_dir_test, name + '.wav')
+            data_srt_path = os.path.join(data_dir_test, name + '.srt')
 
-                data_wav_path = os.path.join(data_dir_test, name + '.wav')
-                data_srt_path = os.path.join(data_dir_test, name + '.srt')
+            train_wav = WavFeatures()
+            train_srt = SrtFeatures()
 
-                train_wav = WavFeatures()
-                train_srt = SrtFeatures()
+            train_wav.load(
+                data_wav_path,
+                window_size=wav_window_size_second,
+                window_step=wav_window_step_second,
+                numcep=params.get_wav_cepstrum_size())
+            train_srt.load(data_srt_path, wav_sample_rate)
 
-                train_wav.load(
-                    data_wav_path,
-                    window_size=wav_window_size_second,
-                    window_step=wav_window_step_second,
-                    numcep=params.get_wav_cepstrum_size())
-                train_srt.load(data_srt_path, wav_sample_rate)
-
-                data_size = train_wav.feature_size() - training_sequence_size
-
-                if data_size > 0:
-                    break
-
-                wav_index = np.random.randint(0, len(data_wav_test))
+            data_size = train_wav.feature_size() - training_sequence_size
 
             head = np.random.randint(0, data_size)
             tail = head + training_sequence_size - srt_delay_size
@@ -125,31 +116,22 @@ def train(params, model):
     srt_batch = [[] for x in xrange(batch_size)]
 
     for i in xrange(len(indice)):
-        wav_index = indice[i]
+        name, _ = os.path.splitext(data_wav_training[indice[i]])
 
-        # sanity check
-        while True:
-            name, _ = os.path.splitext(data_wav_training[wav_index])
+        data_wav_path = os.path.join(data_dir_training, name + '.wav')
+        data_srt_path = os.path.join(data_dir_training, name + '.srt')
 
-            data_wav_path = os.path.join(data_dir_training, name + '.wav')
-            data_srt_path = os.path.join(data_dir_training, name + '.srt')
+        train_wav = WavFeatures()
+        train_srt = SrtFeatures()
 
-            train_wav = WavFeatures()
-            train_srt = SrtFeatures()
+        train_wav.load(
+            data_wav_path,
+            window_size=wav_window_size_second,
+            window_step=wav_window_step_second,
+            numcep=params.get_wav_cepstrum_size())
+        train_srt.load(data_srt_path, wav_sample_rate)
 
-            train_wav.load(
-                data_wav_path,
-                window_size=wav_window_size_second,
-                window_step=wav_window_step_second,
-                numcep=params.get_wav_cepstrum_size())
-            train_srt.load(data_srt_path, wav_sample_rate)
-
-            data_size = train_wav.feature_size() - training_sequence_size
-
-            if data_size > 0:
-                break
-
-            wav_index = np.random.randint(0, len(data_wav_training))
+        data_size = train_wav.feature_size() - training_sequence_size
 
         head = np.random.randint(0, data_size)
         tail = head + training_sequence_size - srt_delay_size
