@@ -64,8 +64,6 @@ class VadModel(object):
         #
         logits = self.build_nn_after_rnn(params, outputs)
 
-        self._masks = tf.argmax(logits, 1)
-
         # final
         probabilities = tf.nn.softmax(logits)
 
@@ -226,7 +224,7 @@ class VadModel(object):
 
         self._reporter.add_summary(summary, gstep)
 
-    def learn(self, source_wav, target_srt, training=True):
+    def run(self, source_wav, target_srt, training=True):
         """
         """
         # fetch initial states
@@ -267,44 +265,9 @@ class VadModel(object):
     def train(self, source_wav, target_srt):
         """
         """
-        return self.learn(source_wav, target_srt, True)
+        return self.run(source_wav, target_srt, True)
 
     def test(self, source_wav, target_srt):
         """
         """
-        return self.learn(source_wav, target_srt, False)
-
-    def detect(self, source_wav):
-        """
-        """
-        sequence_size = self._training_sequence_size
-
-        # fetch initial states
-        fetch = self._state
-
-        feeds = {
-            self._source_data: [source_wav[:sequence_size]]
-        }
-
-        state = self._session.run(fetch, feeds)
-
-        fetch = [self._masks, self._last_state]
-
-        feeds = {
-            self._state: None,
-            self._source_data: None,
-        }
-
-        source_wav_end = len(source_wav) - sequence_size
-
-        result = np.zeros([len(source_wav)])
-
-        for x in xrange(0, source_wav_end, sequence_size):
-            feeds[self._state] = state
-            feeds[self._source_data] = [source_wav[x:x + sequence_size]]
-
-            masks, state = self._session.run(fetch, feeds)
-
-            result[x:x + sequence_size] = masks
-
-        return result[self._srt_delay_size:]
+        return self.run(source_wav, target_srt, False)
