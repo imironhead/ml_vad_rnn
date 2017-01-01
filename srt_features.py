@@ -133,7 +133,7 @@ class SrtWriter(object):
                 while True:
                     if feature_idx >= len(features):
                         break
-                    if features[feature_idx] == 1.0:
+                    if features[feature_idx] == 1:
                         break
                     feature_idx += 1
 
@@ -146,7 +146,7 @@ class SrtWriter(object):
                 while True:
                     if feature_idx >= len(features):
                         break
-                    if features[feature_idx] == 0.0:
+                    if features[feature_idx] == 0:
                         break
                     feature_idx += 1
 
