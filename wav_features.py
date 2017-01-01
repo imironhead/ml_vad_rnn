@@ -45,18 +45,10 @@ class WavFeatures(object):
         """
         return len(self._features)
 
-    def features(self, begin, end, padding):
+    def features(self):
         """
         """
-        padding_len = padding
-        feature_len = end - begin
-        feature_dim = self._features[0].shape[0]
-
-        output = np.zeros((feature_len + padding_len, feature_dim))
-
-        output[0:feature_len] = self._features[begin:end]
-
-        return output
+        return self._features
 
     def sample_rate(self):
         """

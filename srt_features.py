@@ -76,16 +76,16 @@ class SrtFeatures(object):
         if len(lines) > 0:
             self._cues.append(SrtCue(lines, sample_rate))
 
-    def features(self, begin, end, delay, window_size, window_step):
+    def features(self, begin, end, window_size, window_step):
         """
         """
         source_len = len(self._cues)
         target_len = end - begin
 
         source_idx = 0
-        target_idx = delay
+        target_idx = 0
 
-        result = np.zeros([delay + target_len], dtype=np.int32)
+        result = np.zeros([target_len], dtype=np.int32)
 
         while source_idx < source_len and target_idx < target_len:
             target_b = window_step * (begin + target_idx)

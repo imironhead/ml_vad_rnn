@@ -213,93 +213,193 @@ class VadModel(object):
         saver.save(self._session, self._checkpoint_target_path,
                    global_step=self._global_step)
 
+    def save_summary(self, gstep, tag=None, value=None, summary=None):
+        """
+        """
+        if (tag is None or value is None) and (summary is None):
+            raise Exception('need customized of specified summary')
+
+        if summary is None:
+            summary_value = [tf.Summary.Value(tag=tag, simple_value=value)]
+
+            summary = tf.Summary(value=summary_value)
+
+        self._reporter.add_summary(summary, gstep)
+
+    def initial_states(self, source_wav):
+        """
+        """
+        fetch = self._state
+
+        feeds = {
+            self._source_data: source_wav[:, :self._training_sequence_size]
+        }
+
+        return self._session.run(fetch, feeds)
+
+    def reshape_data(self, source, uni_length=None):
+        """
+        source:
+            the out-most container may be a list
+            shape: [batch_size, ?, feature_size]
+        uni_length:
+            desired length. find minimum length if it's None.
+
+        return:
+            shape: [batch_size, k * sequence_size, feature_size]
+        """
+        if uni_length is None:
+            sequence_size = self._training_sequence_size
+
+            min_length = min([r.shape[0] for r in source])
+
+            uni_length = (min_length / sequence_size) * sequence_size
+
+        return np.vstack([r[None, :uni_length] for r in source])
+
+    def work(self, task, states, source_wav, target_srt=None, sample_wgt=None):
+        """
+        task:
+            'train', 'test' or 'detect'.
+        states:
+            initial states for this batch in this step.
+            shape: [batch_size, sequence_size]
+        source_wav:
+            wav data input.
+            shape: [batch_size, sequence_size, feature_size]
+        target_srt:
+            voice activities mask. for training and testing.
+            shape: [batch_size, sequence_size]
+        sample_wgt:
+            time delay mask. for training and testing. all batch data must has
+            same delay mask.
+            shape: [sequence_size]
+
+        return:
+            'train':  last_state, gstep, summary, loss, correctness, trainer
+            'test':   last_state, gstep, summary, loss, correctness
+            'detect': last_state, masks
+        """
+        fetch = [self._last_state]
+
+        feeds = {
+            self._state: states,
+            self._source_data: source_wav,
+        }
+
+        # fetch
+        if task == 'train' or task == 'test':
+            fetch.extend(
+                [self._global_step, self._summaries, self._loss, self._judge])
+
+        if task == 'train':
+            fetch.append(self._trainer)
+
+        if task == 'detect':
+            fetch.append(self._masks)
+
+        # feeds
+        if task == 'train' or task == 'test':
+            feeds[self._target_data] = target_srt
+            feeds[self._batch_sample_weights] = sample_wgt
+
+        return self._session.run(fetch, feeds)
+
     def train(self, source_wav, target_srt):
         """
         """
-        sample_wgt = np.ones([self._training_sequence_size])
+        if self._srt_delay_size > 0:
+            paddings = np.zeros((self._srt_delay_size))
+            target_srt = [np.hstack((paddings, r)) for r in target_srt]
 
-        sample_wgt[:self._srt_delay_size] = 0.0
+        source_wav = self.reshape_data(source_wav)
+        target_srt = self.reshape_data(target_srt, source_wav.shape[1])
 
-        fetches = self._state
+        sequence_size = self._training_sequence_size
+        total_size = source_wav.shape[1]
+        last_states = self.initial_states(source_wav)
 
-        feed = {}
+        for base in xrange(0, total_size, sequence_size):
+            # REVIEW: do we really need the weights for delays?
+            if base <= sequence_size:
+                sample_wgt = np.ones((sequence_size))
 
-        feed[self._source_data] = \
-            [w[:self._training_sequence_size] for w in source_wav]
+            if base == 0:
+                sample_wgt[:self._srt_delay_size] = 0.0
 
-        state = self._session.run(fetches, feed)
+            result = self.work(
+                'train',
+                last_states,
+                source_wav[:, base:base+sequence_size],
+                target_srt[:, base:base+sequence_size],
+                sample_wgt)
 
-        fetches = [
-            self._global_step,
-            self._summaries,
-            self._loss,
-            self._judge,
-            self._trainer
-        ]
+            last_states = result[0]
 
-        feed = {
-            self._state: state,
-            self._batch_sample_weights: sample_wgt,
-            self._source_data: source_wav,
-            self._target_data: target_srt
-        }
-
-        gstep, summaries, loss, accuracy, _ = self._session.run(fetches, feed)
-
-        if gstep % 100 == 0:
-            self._reporter.add_summary(summaries, gstep)
-
-        return loss, accuracy, gstep
+        # last_state, gstep, summary, loss, correctness, trainer
+        return result
 
     def test(self, source_wav, target_srt):
         """
         """
-        fetches = self._state
+        if self._srt_delay_size > 0:
+            paddings = np.zeros((self._srt_delay_size))
+            target_srt = [np.hstack((paddings, r)) for r in target_srt]
 
-        feed = {
-            self._source_data: [source_wav[:self._training_sequence_size]]
-        }
+        source_wav = self.reshape_data(source_wav)
+        target_srt = self.reshape_data(target_srt, source_wav.shape[1])
 
-        state = self._session.run(fetches, feed)
-
-        sample_wgt = np.ones([self._training_sequence_size])
-
-        feed = {
-            self._state: state,
-            self._batch_sample_weights: sample_wgt,
-            self._source_data: None,
-            self._target_data: None
-        }
-
-        fetches = [
-            self._judge,
-            self._last_state,
-        ]
-
-        num_correctness = 0.0
-        num_samples = 0.0
         sequence_size = self._training_sequence_size
+        total_size = source_wav.shape[1]
+        last_states = self.initial_states(source_wav)
 
-        for i in xrange(0, len(source_wav) - sequence_size, sequence_size):
-            feed[self._state] = state
-            feed[self._source_data] = [source_wav[i:i+sequence_size]]
-            feed[self._target_data] = [target_srt[i:i+sequence_size]]
+        correctness_count = 0.0
+        correctness_value = 0.0
 
-            correctness, state = self._session.run(fetches, feed)
+        for base in xrange(0, total_size, sequence_size):
+            # REVIEW: do we really need the weights for delays?
+            if base <= sequence_size:
+                sample_wgt = np.ones((sequence_size))
 
-            if i >= self._srt_delay_size:
-                num_samples += 1.0
-                num_correctness += correctness
+            if base == 0:
+                sample_wgt[:self._srt_delay_size] = 0.0
 
-        step = self._session.run(self._global_step)
+            result = self.work(
+                'test',
+                last_states,
+                source_wav[:, base:base+sequence_size],
+                target_srt[:, base:base+sequence_size],
+                sample_wgt)
 
-        accuracy = num_correctness / num_samples
+            last_states = result[0]
 
-        summary_value = [
-            tf.Summary.Value(tag="test accuracy", simple_value=accuracy)]
+            correctness_count += result[4].size
+            correctness_value += result[4].sum()
 
-        summary = tf.Summary(value=summary_value)
+        # gstep, correctness
+        return result[1], (correctness_value / correctness_count)
 
-        self._reporter.add_summary(summary, step)
+    def detect(self, source_wav):
+        """
+        """
+        # REVIEW: generator???
+        source_wav = self.reshape_data(source_wav)
+        sequence_size = self._training_sequence_size
+        total_size = source_wav.shape[1]
+        last_states = self.initial_states(source_wav)
 
-        print accuracy
+        results = []
+
+        for base in xrange(0, total_size, sequence_size):
+            result = self.work(
+                'detect',
+                last_states,
+                source_wav[:, base:base+sequence_size])
+
+            last_states = result[0]
+
+            results.append(result[1])
+
+        results = np.hstack(results)
+
+        return results[:, self._srt_delay_size:]
