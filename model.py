@@ -211,63 +211,93 @@ class VadModel(object):
         saver.save(self._session, self._checkpoint_target_path,
                    global_step=self._global_step)
 
-    def save_summary(self, gstep, tag=None, value=None, summary=None):
+    def train(self, source_wav, target_srt):
         """
         """
-        if (tag is None or value is None) and (summary is None):
-            raise Exception('need customized of specified summary')
-
-        if summary is None:
-            summary_value = [tf.Summary.Value(tag=tag, simple_value=value)]
-
-            summary = tf.Summary(value=summary_value)
-
-        self._reporter.add_summary(summary, gstep)
-
-    def run(self, source_wav, target_srt, training=True):
-        """
-        """
-        # fetch initial states
-        fetch = self._state
-
-        feeds = {
-            self._source_data:
-            [w[:self._training_sequence_size] for w in source_wav]
-        }
-
-        state = self._session.run(fetch, feeds)
-
-        # mask to filter sound features for the network needs delays to detect
-        # human speech.
         sample_wgt = np.ones([self._training_sequence_size])
 
         sample_wgt[:self._srt_delay_size] = 0.0
 
-        fetch = [
+        fetches = self._state
+
+        feed = {}
+
+        feed[self._source_data] = \
+            [w[:self._training_sequence_size] for w in source_wav]
+
+        state = self._session.run(fetches, feed)
+
+        fetches = [
             self._global_step,
             self._summaries,
             self._loss,
-            self._judge
+            self._judge,
+            self._trainer
         ]
 
-        feeds = {
+        feed = {
             self._state: state,
             self._batch_sample_weights: sample_wgt,
             self._source_data: source_wav,
             self._target_data: target_srt
         }
 
-        if training:
-            fetch.append(self._trainer)
+        gstep, summaries, loss, accuracy, _ = self._session.run(fetches, feed)
 
-        return self._session.run(fetch, feeds)[:4]
+        if gstep % 100 == 0:
+            self._reporter.add_summary(summaries, gstep)
 
-    def train(self, source_wav, target_srt):
-        """
-        """
-        return self.run(source_wav, target_srt, True)
+        return loss, accuracy, gstep
 
     def test(self, source_wav, target_srt):
         """
         """
-        return self.run(source_wav, target_srt, False)
+        fetches = self._state
+
+        feed = {
+            self._source_data: [source_wav[:self._training_sequence_size]]
+        }
+
+        state = self._session.run(fetches, feed)
+
+        sample_wgt = np.ones([self._training_sequence_size])
+
+        feed = {
+            self._state: state,
+            self._batch_sample_weights: sample_wgt,
+            self._source_data: None,
+            self._target_data: None
+        }
+
+        fetches = [
+            self._judge,
+            self._last_state,
+        ]
+
+        num_correctness = 0.0
+        num_samples = 0.0
+        sequence_size = self._training_sequence_size
+
+        for i in xrange(0, len(source_wav) - sequence_size, sequence_size):
+            feed[self._state] = state
+            feed[self._source_data] = [source_wav[i:i+sequence_size]]
+            feed[self._target_data] = [target_srt[i:i+sequence_size]]
+
+            correctness, state = self._session.run(fetches, feed)
+
+            if i >= self._srt_delay_size:
+                num_samples += 1.0
+                num_correctness += correctness
+
+        step = self._session.run(self._global_step)
+
+        accuracy = num_correctness / num_samples
+
+        summary_value = [
+            tf.Summary.Value(tag="test accuracy", simple_value=accuracy)]
+
+        summary = tf.Summary(value=summary_value)
+
+        self._reporter.add_summary(summary, step)
+
+        print accuracy
