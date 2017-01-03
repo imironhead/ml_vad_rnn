@@ -65,6 +65,8 @@ class VadModel(object):
         logits = self.build_nn_after_rnn(params, outputs)
 
         self._masks = tf.argmax(logits, 1)
+        self._masks = tf.reshape(
+            self._masks, [-1, self._training_sequence_size])
 
         # final
         probabilities = tf.nn.softmax(logits)
