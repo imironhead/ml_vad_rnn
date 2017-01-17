@@ -347,45 +347,24 @@ class VadModel(object):
     def test(self, source_wav, target_srt):
         """
         """
-        if self._srt_delay_size > 0:
-            paddings = np.zeros((self._srt_delay_size))
-            target_srt = [np.hstack((paddings, r)) for r in target_srt]
+        gstep = self._session.run(self._global_step, {})
 
-        source_wav = self.reshape_data(source_wav)
-        target_srt = self.reshape_data(target_srt, source_wav.shape[1])
-
-        sequence_size = self._training_sequence_size
-        total_size = source_wav.shape[1]
-        last_states = self.initial_states(source_wav)
+        result_srt = self.detect(source_wav)
 
         correctness_count = 0.0
         correctness_value = 0.0
 
-        temp_srt_delay = self._srt_delay_size
+        for i in xrange(result_srt.shape[0]):
+            size = min(result_srt[i].size, target_srt[i].size)
 
-        for base in xrange(0, total_size, sequence_size):
-            # REVIEW: do we really need the weights for delays?
-            sample_wgt = np.ones((sequence_size))
+            result = result_srt[i][:size]
+            target = target_srt[i][:size]
 
-            if temp_srt_delay > 0:
-                sample_wgt[:min(temp_srt_delay, sequence_size)] = 0.0
-
-                temp_srt_delay -= sequence_size
-
-            result = self.work(
-                'test',
-                last_states,
-                source_wav[:, base:base+sequence_size],
-                target_srt[:, base:base+sequence_size],
-                sample_wgt)
-
-            last_states = result[0]
-
-            correctness_count += result[4].size
-            correctness_value += result[4].sum()
+            correctness_value += float(np.sum(result == target))
+            correctness_count += float(size)
 
         # gstep, correctness
-        return result[1], (correctness_value / correctness_count)
+        return gstep, (correctness_value / correctness_count)
 
     def detect(self, source_wav):
         """

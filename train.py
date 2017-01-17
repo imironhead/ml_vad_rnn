@@ -90,7 +90,6 @@ def test(params, model, context):
     data_dir_test = params.get_dir_cue_test()
     data_wav_test = collect_file_names(data_dir_test, 'wav')
 
-    batch_size = params.get_batch_size()
     sequence_size = params.get_rnn_sequence_length()
     wav_window_size = params.get_wav_window_size()
     wav_window_step = params.get_wav_window_step()
@@ -102,34 +101,29 @@ def test(params, model, context):
     wav_batch = []
     srt_batch = []
 
-    for i in xrange(batch_size):
-        while True:
-            wav_index = np.random.randint(0, len(data_wav_test))
+    wav_index = np.random.randint(0, len(data_wav_test))
 
-            name, _ = os.path.splitext(data_wav_test[wav_index])
+    name, _ = os.path.splitext(data_wav_test[wav_index])
 
-            data_wav_path = os.path.join(data_dir_test, name + '.wav')
-            data_srt_path = os.path.join(data_dir_test, name + '.srt')
+    data_wav_path = os.path.join(data_dir_test, name + '.wav')
+    data_srt_path = os.path.join(data_dir_test, name + '.srt')
 
-            train_wav = WavFeatures()
-            train_srt = SrtFeatures()
+    train_wav = WavFeatures()
+    train_srt = SrtFeatures()
 
-            train_wav.load(
-                data_wav_path,
-                window_size=wav_window_size_second,
-                window_step=wav_window_step_second,
-                numcep=params.get_wav_cepstrum_size())
-            train_srt.load(data_srt_path, wav_sample_rate)
+    train_wav.load(
+        data_wav_path,
+        window_size=wav_window_size_second,
+        window_step=wav_window_step_second,
+        numcep=params.get_wav_cepstrum_size())
+    train_srt.load(data_srt_path, wav_sample_rate)
 
-            if train_wav.feature_size() > sequence_size:
-                break
+    wav_features = train_wav.features()
+    srt_features = train_srt.features(
+        0, len(wav_features), wav_window_size, wav_window_step)
 
-        wav_features = train_wav.features()
-        srt_features = train_srt.features(
-            0, len(wav_features), wav_window_size, wav_window_step)
-
-        wav_batch.append(wav_features)
-        srt_batch.append(srt_features)
+    wav_batch.append(wav_features)
+    srt_batch.append(srt_features)
 
     gstep, accuracy = model.test(wav_batch, srt_batch)
 
