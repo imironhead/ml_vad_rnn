@@ -17,7 +17,7 @@
   "wav_cepstrum_size": 13,
   "wav_window_size": 100,
   "wav_window_step": 40,
-  "srt_delay_size": 2000,
+  "srt_delay_size": 50,
   "head_hidden_layers": [128, 128, 13],
   "tail_hidden_layers": [64, 64],
   "head_hidden_layers_bias": true,
