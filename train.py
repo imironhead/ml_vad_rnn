@@ -81,6 +81,13 @@ def train(params, model, context):
 
         print "step:{}, loss: {}, accuracy: {}".format(gstep, loss, accuracy)
 
+    if context['gstep_checkpoint'] + 10000 < gstep:
+        context['gstep_checkpoint'] = gstep
+
+        print 'saving check point {}'.format(gstep)
+
+        model.save_checkpoint()
+
     return gstep
 
 
@@ -90,7 +97,6 @@ def test(params, model, context):
     data_dir_test = params.get_dir_cue_test()
     data_wav_test = collect_file_names(data_dir_test, 'wav')
 
-    sequence_size = params.get_rnn_sequence_length()
     wav_window_size = params.get_wav_window_size()
     wav_window_step = params.get_wav_window_step()
     wav_sample_rate = params.get_wav_sample_rate()
@@ -137,6 +143,7 @@ def learn(params, model):
     """
     context = {
         'gstep': 0,
+        'gstep_checkpoint': 0,
     }
 
     for epoch in xrange(params.get_epoch_count()):
@@ -160,5 +167,3 @@ if __name__ == "__main__":
         learn(params, model)
     except KeyboardInterrupt:
         pass
-
-    model.save_checkpoint()
