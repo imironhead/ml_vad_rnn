@@ -1,5 +1,5 @@
 {
-  "session_name": "baseline",
+  "session_name": "005",
   "model_name": "basic",
   "epoch_size": 1000,
   "epoch_count": 100000,
