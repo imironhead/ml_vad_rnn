@@ -321,13 +321,16 @@ class VadModel(object):
         total_size = source_wav.shape[1]
         last_states = self.initial_states(source_wav)
 
+        temp_srt_delay = self._srt_delay_size
+
         for base in xrange(0, total_size, sequence_size):
             # REVIEW: do we really need the weights for delays?
-            if base <= sequence_size:
-                sample_wgt = np.ones((sequence_size))
+            sample_wgt = np.ones((sequence_size))
 
-            if base == 0:
-                sample_wgt[:self._srt_delay_size] = 0.0
+            if temp_srt_delay > 0:
+                sample_wgt[:min(temp_srt_delay, sequence_size)] = 0.0
+
+                temp_srt_delay -= sequence_size
 
             result = self.work(
                 'train',
@@ -358,13 +361,16 @@ class VadModel(object):
         correctness_count = 0.0
         correctness_value = 0.0
 
+        temp_srt_delay = self._srt_delay_size
+
         for base in xrange(0, total_size, sequence_size):
             # REVIEW: do we really need the weights for delays?
-            if base <= sequence_size:
-                sample_wgt = np.ones((sequence_size))
+            sample_wgt = np.ones((sequence_size))
 
-            if base == 0:
-                sample_wgt[:self._srt_delay_size] = 0.0
+            if temp_srt_delay > 0:
+                sample_wgt[:min(temp_srt_delay, sequence_size)] = 0.0
+
+                temp_srt_delay -= sequence_size
 
             result = self.work(
                 'test',
