@@ -151,8 +151,11 @@ class VadModel(object):
 
                 source = source + b
 
-            if params.should_use_relu_before_rnn() and idx + 1 < len(dims):
-                source = tf.nn.relu(source)
+            if idx + 1 < len(dims):
+                if params.should_use_relu_before_rnn():
+                    source = tf.nn.relu(source)
+                elif params.should_use_tanh_before_rnn():
+                    source = tf.tanh(source)
 
             size = dim
 
@@ -190,8 +193,11 @@ class VadModel(object):
 
                 source = source + b
 
-            if params.should_use_relu_after_rnn() and idx + 1 < len(dims):
-                source = tf.nn.relu(source)
+            if idx + 1 < len(dims):
+                if params.should_use_relu_after_rnn():
+                    source = tf.nn.relu(source)
+                elif params.should_use_tanh_after_rnn():
+                    source = tf.tanh(source)
 
             size = dim
 

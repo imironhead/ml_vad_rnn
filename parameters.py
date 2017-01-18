@@ -284,7 +284,17 @@ class Parameters(object):
         """
         return self._head_hidden_layers_nonlinear == 'relu'
 
+    def should_use_tanh_before_rnn(self):
+        """
+        """
+        return self._head_hidden_layers_nonlinear == 'tanh'
+
     def should_use_relu_after_rnn(self):
         """
         """
         return self._tail_hidden_layers_nonlinear == 'relu'
+
+    def should_use_tanh_after_rnn(self):
+        """
+        """
+        return self._tail_hidden_layers_nonlinear == 'tanh'
