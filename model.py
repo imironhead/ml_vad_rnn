@@ -26,6 +26,15 @@ class VadModel(object):
         # how many samples to delay
         self._srt_delay_size = params.get_srt_delay_size()
 
+        # dropout
+        if params.should_dropout_after_rnn():
+            self._dropout_prob_after_rnn = tf.placeholder(tf.float32)
+            self._dropout_prob_after_rnn_value = \
+                params.get_dropout_prob_after_rnn()
+        else:
+            self._dropout_prob_after_rnn = None
+            self._dropout_prob_after_rnn_value = 1.0
+
         # batch sample weights for delay
         self._batch_sample_weights = tf.placeholder(
             tf.float32,
@@ -182,6 +191,14 @@ class VadModel(object):
         source = tf.concat(1, source)
         source = tf.reshape(source, [-1, params.get_rnn_unit_num()])
 
+        idx_dropout = -1
+
+        # constraint
+        if params.should_dropout_after_rnn():
+            for idx in xrange(len(dims)):
+                if dims[idx] > 10:
+                    idx_dropout = idx
+
         if len(dims) == 0 or dims[-1] != 2:
             dims.append(2)
 
@@ -212,6 +229,9 @@ class VadModel(object):
                     idx + 1 < len(dims) and (idx % 2 == 2):
                 source = source + residual
                 residual = source
+
+            if idx == idx_dropout:
+                source = tf.nn.dropout(source, self._dropout_prob_after_rnn)
 
             size = dim
 
@@ -324,6 +344,13 @@ class VadModel(object):
         if task == 'train' or task == 'test':
             feeds[self._target_data] = target_srt
             feeds[self._batch_sample_weights] = sample_wgt
+
+        if self._dropout_prob_after_rnn is not None:
+            if task == 'train':
+                feeds[self._dropout_prob_after_rnn] = \
+                    self._dropout_prob_after_rnn_value
+            else:
+                feeds[self._dropout_prob_after_rnn] = 1.0
 
         return self._session.run(fetch, feeds)
 
