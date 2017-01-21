@@ -157,6 +157,13 @@ class VadModel(object):
                 elif params.should_use_tanh_before_rnn():
                     source = tf.tanh(source)
 
+            if idx == 0:
+                residual = source
+            elif params.should_add_residual_before_rnn() and \
+                    idx + 1 < len(dims) and (idx % 2 == 2):
+                source = source + residual
+                residual = source
+
             size = dim
 
         return source, size
@@ -198,6 +205,13 @@ class VadModel(object):
                     source = tf.nn.relu(source)
                 elif params.should_use_tanh_after_rnn():
                     source = tf.tanh(source)
+
+            if idx == 0:
+                residual = source
+            elif params.should_add_residual_after_rnn() and \
+                    idx + 1 < len(dims) and (idx % 2 == 2):
+                source = source + residual
+                residual = source
 
             size = dim
 

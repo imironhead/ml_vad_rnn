@@ -279,6 +279,16 @@ class Parameters(object):
         """
         return self._tail_hidden_layers_bias
 
+    def should_add_residual_before_rnn(self):
+        """
+        """
+        return self._params.get('head_hidden_layers_residual', False)
+
+    def should_add_residual_after_rnn(self):
+        """
+        """
+        return self._params.get('tail_hidden_layers_residual', False)
+
     def should_use_relu_before_rnn(self):
         """
         """
