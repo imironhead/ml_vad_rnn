@@ -26,6 +26,15 @@ class VadModel(object):
         # how many samples to delay
         self._srt_delay_size = params.get_srt_delay_size()
 
+        # dropout
+        if params.should_dropout_after_rnn():
+            self._dropout_prob_after_rnn = tf.placeholder(tf.float32)
+            self._dropout_prob_after_rnn_value = \
+                params.get_dropout_prob_after_rnn()
+        else:
+            self._dropout_prob_after_rnn = None
+            self._dropout_prob_after_rnn_value = 1.0
+
         # batch sample weights for delay
         self._batch_sample_weights = tf.placeholder(
             tf.float32,
@@ -64,6 +73,10 @@ class VadModel(object):
         #
         logits = self.build_nn_after_rnn(params, outputs)
 
+        self._masks = tf.argmax(logits, 1)
+        self._masks = tf.reshape(
+            self._masks, [-1, self._training_sequence_size])
+
         # final
         probabilities = tf.nn.softmax(logits)
 
@@ -73,8 +86,6 @@ class VadModel(object):
         # rnn loss
         total_loss = tf.nn.seq2seq.sequence_loss_by_example(
             [logits], [tf.reshape(self._target_data, [-1])], [wgts])
-
-        # regularization losses
 
         # cost
         total_size = tf.reduce_sum(wgts)
@@ -147,8 +158,18 @@ class VadModel(object):
 
                 source = source + b
 
-            if params.should_use_relu_before_rnn() and idx + 1 < len(dims):
-                source = tf.nn.relu(source)
+            if idx + 1 < len(dims):
+                if params.should_use_relu_before_rnn():
+                    source = tf.nn.relu(source)
+                elif params.should_use_tanh_before_rnn():
+                    source = tf.tanh(source)
+
+            if idx == 0:
+                residual = source
+            elif params.should_add_residual_before_rnn() and \
+                    idx + 1 < len(dims) and (idx % 2 == 2):
+                source = source + residual
+                residual = source
 
             size = dim
 
@@ -168,6 +189,14 @@ class VadModel(object):
         source = tf.concat(1, source)
         source = tf.reshape(source, [-1, params.get_rnn_unit_num()])
 
+        idx_dropout = -1
+
+        # constraint
+        if params.should_dropout_after_rnn():
+            for idx in xrange(len(dims)):
+                if dims[idx] > 10:
+                    idx_dropout = idx
+
         if len(dims) == 0 or dims[-1] != 2:
             dims.append(2)
 
@@ -186,8 +215,21 @@ class VadModel(object):
 
                 source = source + b
 
-            if params.should_use_relu_after_rnn() and idx + 1 < len(dims):
-                source = tf.nn.relu(source)
+            if idx + 1 < len(dims):
+                if params.should_use_relu_after_rnn():
+                    source = tf.nn.relu(source)
+                elif params.should_use_tanh_after_rnn():
+                    source = tf.tanh(source)
+
+            if idx == 0:
+                residual = source
+            elif params.should_add_residual_after_rnn() and \
+                    idx + 1 < len(dims) and (idx % 2 == 2):
+                source = source + residual
+                residual = source
+
+            if idx == idx_dropout:
+                source = tf.nn.dropout(source, self._dropout_prob_after_rnn)
 
             size = dim
 
@@ -211,93 +253,185 @@ class VadModel(object):
         saver.save(self._session, self._checkpoint_target_path,
                    global_step=self._global_step)
 
+    def save_summary(self, gstep, tag=None, value=None, summary=None):
+        """
+        """
+        if (tag is None or value is None) and (summary is None):
+            raise Exception('need customized of specified summary')
+
+        if summary is None:
+            summary_value = [tf.Summary.Value(tag=tag, simple_value=value)]
+
+            summary = tf.Summary(value=summary_value)
+
+        self._reporter.add_summary(summary, gstep)
+
+    def initial_states(self, source_wav):
+        """
+        """
+        fetch = self._state
+
+        feeds = {
+            self._source_data: source_wav[:, :self._training_sequence_size]
+        }
+
+        return self._session.run(fetch, feeds)
+
+    def reshape_data(self, source, uni_length=None):
+        """
+        source:
+            the out-most container may be a list
+            shape: [batch_size, ?, feature_size]
+        uni_length:
+            desired length. find minimum length if it's None.
+
+        return:
+            shape: [batch_size, k * sequence_size, feature_size]
+        """
+        if uni_length is None:
+            sequence_size = self._training_sequence_size
+
+            min_length = min([r.shape[0] for r in source])
+
+            uni_length = (min_length / sequence_size) * sequence_size
+
+        return np.vstack([r[None, :uni_length] for r in source])
+
+    def work(self, task, states, source_wav, target_srt=None, sample_wgt=None):
+        """
+        task:
+            'train', 'test' or 'detect'.
+        states:
+            initial states for this batch in this step.
+            shape: [batch_size, sequence_size]
+        source_wav:
+            wav data input.
+            shape: [batch_size, sequence_size, feature_size]
+        target_srt:
+            voice activities mask. for training and testing.
+            shape: [batch_size, sequence_size]
+        sample_wgt:
+            time delay mask. for training and testing. all batch data must has
+            same delay mask.
+            shape: [sequence_size]
+
+        return:
+            'train':  last_state, gstep, summary, loss, correctness, trainer
+            'test':   last_state, gstep, summary, loss, correctness
+            'detect': last_state, masks
+        """
+        fetch = [self._last_state]
+
+        feeds = {
+            self._state: states,
+            self._source_data: source_wav,
+        }
+
+        # fetch
+        if task == 'train' or task == 'test':
+            fetch.extend(
+                [self._global_step, self._summaries, self._loss, self._judge])
+
+        if task == 'train':
+            fetch.append(self._trainer)
+
+        if task == 'detect':
+            fetch.append(self._masks)
+
+        # feeds
+        if task == 'train' or task == 'test':
+            feeds[self._target_data] = target_srt
+            feeds[self._batch_sample_weights] = sample_wgt
+
+        if self._dropout_prob_after_rnn is not None:
+            if task == 'train':
+                feeds[self._dropout_prob_after_rnn] = \
+                    self._dropout_prob_after_rnn_value
+            else:
+                feeds[self._dropout_prob_after_rnn] = 1.0
+
+        return self._session.run(fetch, feeds)
+
     def train(self, source_wav, target_srt):
         """
         """
-        sample_wgt = np.ones([self._training_sequence_size])
+        if self._srt_delay_size > 0:
+            paddings = np.zeros((self._srt_delay_size))
+            target_srt = [np.hstack((paddings, r)) for r in target_srt]
 
-        sample_wgt[:self._srt_delay_size] = 0.0
+        source_wav = self.reshape_data(source_wav)
+        target_srt = self.reshape_data(target_srt, source_wav.shape[1])
 
-        fetches = self._state
+        sequence_size = self._training_sequence_size
+        total_size = source_wav.shape[1]
+        last_states = self.initial_states(source_wav)
 
-        feed = {}
+        temp_srt_delay = self._srt_delay_size
 
-        feed[self._source_data] = \
-            [w[:self._training_sequence_size] for w in source_wav]
+        for base in xrange(0, total_size, sequence_size):
+            # REVIEW: do we really need the weights for delays?
+            sample_wgt = np.ones((sequence_size))
 
-        state = self._session.run(fetches, feed)
+            if temp_srt_delay > 0:
+                sample_wgt[:min(temp_srt_delay, sequence_size)] = 0.0
 
-        fetches = [
-            self._global_step,
-            self._summaries,
-            self._loss,
-            self._judge,
-            self._trainer
-        ]
+                temp_srt_delay -= sequence_size
 
-        feed = {
-            self._state: state,
-            self._batch_sample_weights: sample_wgt,
-            self._source_data: source_wav,
-            self._target_data: target_srt
-        }
+            result = self.work(
+                'train',
+                last_states,
+                source_wav[:, base:base+sequence_size],
+                target_srt[:, base:base+sequence_size],
+                sample_wgt)
 
-        gstep, summaries, loss, accuracy, _ = self._session.run(fetches, feed)
+            last_states = result[0]
 
-        if gstep % 100 == 0:
-            self._reporter.add_summary(summaries, gstep)
-
-        return loss, accuracy, gstep
+        # last_state, gstep, summary, loss, correctness, trainer
+        return result
 
     def test(self, source_wav, target_srt):
         """
         """
-        fetches = self._state
+        gstep = self._session.run(self._global_step, {})
 
-        feed = {
-            self._source_data: [source_wav[:self._training_sequence_size]]
-        }
+        result_srt = self.detect(source_wav)
 
-        state = self._session.run(fetches, feed)
+        correctness_count = 0.0
+        correctness_value = 0.0
 
-        sample_wgt = np.ones([self._training_sequence_size])
+        for i in xrange(result_srt.shape[0]):
+            size = min(result_srt[i].size, target_srt[i].size)
 
-        feed = {
-            self._state: state,
-            self._batch_sample_weights: sample_wgt,
-            self._source_data: None,
-            self._target_data: None
-        }
+            result = result_srt[i][:size]
+            target = target_srt[i][:size]
 
-        fetches = [
-            self._judge,
-            self._last_state,
-        ]
+            correctness_value += float(np.sum(result == target))
+            correctness_count += float(size)
 
-        num_correctness = 0.0
-        num_samples = 0.0
+        # gstep, correctness
+        return gstep, (correctness_value / correctness_count)
+
+    def detect(self, source_wav):
+        """
+        """
+        # REVIEW: generator???
+        source_wav = self.reshape_data(source_wav)
         sequence_size = self._training_sequence_size
+        total_size = source_wav.shape[1]
+        last_states = self.initial_states(source_wav)
 
-        for i in xrange(0, len(source_wav) - sequence_size, sequence_size):
-            feed[self._state] = state
-            feed[self._source_data] = [source_wav[i:i+sequence_size]]
-            feed[self._target_data] = [target_srt[i:i+sequence_size]]
+        results = []
 
-            correctness, state = self._session.run(fetches, feed)
+        for base in xrange(0, total_size, sequence_size):
+            result = self.work(
+                'detect',
+                last_states,
+                source_wav[:, base:base+sequence_size])
 
-            if i >= self._srt_delay_size:
-                num_samples += 1.0
-                num_correctness += correctness
+            last_states = result[0]
 
-        step = self._session.run(self._global_step)
+            results.append(result[1])
 
-        accuracy = num_correctness / num_samples
+        results = np.hstack(results)
 
-        summary_value = [
-            tf.Summary.Value(tag="test accuracy", simple_value=accuracy)]
-
-        summary = tf.Summary(value=summary_value)
-
-        self._reporter.add_summary(summary, step)
-
-        print accuracy
+        return results[:, self._srt_delay_size:]

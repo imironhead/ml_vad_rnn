@@ -20,7 +20,7 @@ class Parameters(object):
     def arg():
         """
         """
-        if len(sys.argv) != 2:
+        if len(sys.argv) < 2:
             raise Exception('need parameter file name')
 
         if not os.path.isfile(sys.argv[1]):
@@ -35,6 +35,12 @@ class Parameters(object):
 
         if name != 'param_{}.json'.format(param['session_name']):
             raise Exception('invalid session name')
+
+        if len(sys.argv) == 3:
+            if not os.path.isfile(sys.argv[2]):
+                raise Exception('invalid movie file path')
+
+            param['movie_path'] = sys.argv[2]
 
         return param
 
@@ -95,6 +101,11 @@ class Parameters(object):
             raise Exception('need validate dir')
         if not os.path.isdir(self._dir_cue_test):
             raise Exception('need test dir')
+
+    def get_movie_path(self):
+        """
+        """
+        return self._params['movie_path']
 
     def get_session_name(self):
         """
@@ -218,6 +229,11 @@ class Parameters(object):
         """
         return list(self._nn_hidden_layer_after_rnn)
 
+    def get_dropout_prob_after_rnn(self):
+        """
+        """
+        return float(self._params.get("tail_hidden_layers_dropout_prob", 1.0))
+
     def get_checkpoint_source_path(self):
         """
         """
@@ -268,12 +284,37 @@ class Parameters(object):
         """
         return self._tail_hidden_layers_bias
 
+    def should_add_residual_before_rnn(self):
+        """
+        """
+        return self._params.get('head_hidden_layers_residual', False)
+
+    def should_add_residual_after_rnn(self):
+        """
+        """
+        return self._params.get('tail_hidden_layers_residual', False)
+
     def should_use_relu_before_rnn(self):
         """
         """
         return self._head_hidden_layers_nonlinear == 'relu'
 
+    def should_use_tanh_before_rnn(self):
+        """
+        """
+        return self._head_hidden_layers_nonlinear == 'tanh'
+
     def should_use_relu_after_rnn(self):
         """
         """
         return self._tail_hidden_layers_nonlinear == 'relu'
+
+    def should_use_tanh_after_rnn(self):
+        """
+        """
+        return self._tail_hidden_layers_nonlinear == 'tanh'
+
+    def should_dropout_after_rnn(self):
+        """
+        """
+        return self._params.get('tail_hidden_layers_dropout', False)
