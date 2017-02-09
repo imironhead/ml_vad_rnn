@@ -26,6 +26,15 @@ class VadModel(object):
         # how many samples to delay
         self._srt_delay_size = params.get_srt_delay_size()
 
+        # dropout
+        if params.should_dropout_after_rnn():
+            self._dropout_prob_after_rnn = tf.placeholder(tf.float32)
+            self._dropout_prob_after_rnn_value = \
+                params.get_dropout_prob_after_rnn()
+        else:
+            self._dropout_prob_after_rnn = None
+            self._dropout_prob_after_rnn_value = 1.0
+
         # batch sample weights for delay
         self._batch_sample_weights = tf.placeholder(
             tf.float32,
@@ -77,8 +86,6 @@ class VadModel(object):
         # rnn loss
         total_loss = tf.nn.seq2seq.sequence_loss_by_example(
             [logits], [tf.reshape(self._target_data, [-1])], [wgts])
-
-        # regularization losses
 
         # cost
         total_size = tf.reduce_sum(wgts)
@@ -151,8 +158,18 @@ class VadModel(object):
 
                 source = source + b
 
-            if params.should_use_relu_before_rnn() and idx + 1 < len(dims):
-                source = tf.nn.relu(source)
+            if idx + 1 < len(dims):
+                if params.should_use_relu_before_rnn():
+                    source = tf.nn.relu(source)
+                elif params.should_use_tanh_before_rnn():
+                    source = tf.tanh(source)
+
+            if idx == 0:
+                residual = source
+            elif params.should_add_residual_before_rnn() and \
+                    idx + 1 < len(dims) and (idx % 2 == 2):
+                source = source + residual
+                residual = source
 
             size = dim
 
@@ -172,6 +189,14 @@ class VadModel(object):
         source = tf.concat(1, source)
         source = tf.reshape(source, [-1, params.get_rnn_unit_num()])
 
+        idx_dropout = -1
+
+        # constraint
+        if params.should_dropout_after_rnn():
+            for idx in xrange(len(dims)):
+                if dims[idx] > 10:
+                    idx_dropout = idx
+
         if len(dims) == 0 or dims[-1] != 2:
             dims.append(2)
 
@@ -190,8 +215,21 @@ class VadModel(object):
 
                 source = source + b
 
-            if params.should_use_relu_after_rnn() and idx + 1 < len(dims):
-                source = tf.nn.relu(source)
+            if idx + 1 < len(dims):
+                if params.should_use_relu_after_rnn():
+                    source = tf.nn.relu(source)
+                elif params.should_use_tanh_after_rnn():
+                    source = tf.tanh(source)
+
+            if idx == 0:
+                residual = source
+            elif params.should_add_residual_after_rnn() and \
+                    idx + 1 < len(dims) and (idx % 2 == 2):
+                source = source + residual
+                residual = source
+
+            if idx == idx_dropout:
+                source = tf.nn.dropout(source, self._dropout_prob_after_rnn)
 
             size = dim
 
@@ -305,6 +343,13 @@ class VadModel(object):
             feeds[self._target_data] = target_srt
             feeds[self._batch_sample_weights] = sample_wgt
 
+        if self._dropout_prob_after_rnn is not None:
+            if task == 'train':
+                feeds[self._dropout_prob_after_rnn] = \
+                    self._dropout_prob_after_rnn_value
+            else:
+                feeds[self._dropout_prob_after_rnn] = 1.0
+
         return self._session.run(fetch, feeds)
 
     def train(self, source_wav, target_srt):
@@ -321,13 +366,16 @@ class VadModel(object):
         total_size = source_wav.shape[1]
         last_states = self.initial_states(source_wav)
 
+        temp_srt_delay = self._srt_delay_size
+
         for base in xrange(0, total_size, sequence_size):
             # REVIEW: do we really need the weights for delays?
-            if base <= sequence_size:
-                sample_wgt = np.ones((sequence_size))
+            sample_wgt = np.ones((sequence_size))
 
-            if base == 0:
-                sample_wgt[:self._srt_delay_size] = 0.0
+            if temp_srt_delay > 0:
+                sample_wgt[:min(temp_srt_delay, sequence_size)] = 0.0
+
+                temp_srt_delay -= sequence_size
 
             result = self.work(
                 'train',
@@ -344,42 +392,24 @@ class VadModel(object):
     def test(self, source_wav, target_srt):
         """
         """
-        if self._srt_delay_size > 0:
-            paddings = np.zeros((self._srt_delay_size))
-            target_srt = [np.hstack((paddings, r)) for r in target_srt]
+        gstep = self._session.run(self._global_step, {})
 
-        source_wav = self.reshape_data(source_wav)
-        target_srt = self.reshape_data(target_srt, source_wav.shape[1])
-
-        sequence_size = self._training_sequence_size
-        total_size = source_wav.shape[1]
-        last_states = self.initial_states(source_wav)
+        result_srt = self.detect(source_wav)
 
         correctness_count = 0.0
         correctness_value = 0.0
 
-        for base in xrange(0, total_size, sequence_size):
-            # REVIEW: do we really need the weights for delays?
-            if base <= sequence_size:
-                sample_wgt = np.ones((sequence_size))
+        for i in xrange(result_srt.shape[0]):
+            size = min(result_srt[i].size, target_srt[i].size)
 
-            if base == 0:
-                sample_wgt[:self._srt_delay_size] = 0.0
+            result = result_srt[i][:size]
+            target = target_srt[i][:size]
 
-            result = self.work(
-                'test',
-                last_states,
-                source_wav[:, base:base+sequence_size],
-                target_srt[:, base:base+sequence_size],
-                sample_wgt)
-
-            last_states = result[0]
-
-            correctness_count += result[4].size
-            correctness_value += result[4].sum()
+            correctness_value += float(np.sum(result == target))
+            correctness_count += float(size)
 
         # gstep, correctness
-        return result[1], (correctness_value / correctness_count)
+        return gstep, (correctness_value / correctness_count)
 
     def detect(self, source_wav):
         """

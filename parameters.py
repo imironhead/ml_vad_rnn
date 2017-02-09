@@ -229,6 +229,11 @@ class Parameters(object):
         """
         return list(self._nn_hidden_layer_after_rnn)
 
+    def get_dropout_prob_after_rnn(self):
+        """
+        """
+        return float(self._params.get("tail_hidden_layers_dropout_prob", 1.0))
+
     def get_checkpoint_source_path(self):
         """
         """
@@ -279,12 +284,37 @@ class Parameters(object):
         """
         return self._tail_hidden_layers_bias
 
+    def should_add_residual_before_rnn(self):
+        """
+        """
+        return self._params.get('head_hidden_layers_residual', False)
+
+    def should_add_residual_after_rnn(self):
+        """
+        """
+        return self._params.get('tail_hidden_layers_residual', False)
+
     def should_use_relu_before_rnn(self):
         """
         """
         return self._head_hidden_layers_nonlinear == 'relu'
 
+    def should_use_tanh_before_rnn(self):
+        """
+        """
+        return self._head_hidden_layers_nonlinear == 'tanh'
+
     def should_use_relu_after_rnn(self):
         """
         """
         return self._tail_hidden_layers_nonlinear == 'relu'
+
+    def should_use_tanh_after_rnn(self):
+        """
+        """
+        return self._tail_hidden_layers_nonlinear == 'tanh'
+
+    def should_dropout_after_rnn(self):
+        """
+        """
+        return self._params.get('tail_hidden_layers_dropout', False)
