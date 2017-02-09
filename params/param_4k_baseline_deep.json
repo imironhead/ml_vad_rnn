@@ -1,5 +1,5 @@
 {
-  "session_name": "lstm_001",
+  "session_name": "4k_baseline_deep",
   "model_name": "basic",
   "epoch_size": 125,
   "epoch_count": 100000,
@@ -16,13 +16,17 @@
   "wav_sample_rate": 4000,
   "wav_feature": "mfcc",
   "wav_cepstrum_size": 13,
-  "wav_window_size": 500,
+  "wav_window_size": 100,
   "wav_window_step": 40,
-  "srt_delay_size": 100,
-  "head_hidden_layers": [],
-  "tail_hidden_layers": [],
+  "srt_delay_size": 50,
+  "head_hidden_layers": [128, 128, 128, 128, 128, 128],
+  "tail_hidden_layers": [128, 128, 128, 128, 128, 128],
   "head_hidden_layers_bias": true,
   "tail_hidden_layers_bias": true,
-  "head_hidden_layers_nonlinear": "relu",
-  "tail_hidden_layers_nonlinear": "relu"
+  "head_hidden_layers_nonlinear": "tanh",
+  "tail_hidden_layers_nonlinear": "tanh",
+  "head_hidden_layers_residual": false,
+  "tail_hidden_layers_residual": false,
+  "tail_hidden_layers_dropout": false,
+  "tail_hidden_layers_dropout_prob": 1.0
 }

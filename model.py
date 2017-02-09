@@ -87,8 +87,6 @@ class VadModel(object):
         total_loss = tf.nn.seq2seq.sequence_loss_by_example(
             [logits], [tf.reshape(self._target_data, [-1])], [wgts])
 
-        # regularization losses
-
         # cost
         total_size = tf.reduce_sum(wgts)
 
