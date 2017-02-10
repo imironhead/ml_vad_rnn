@@ -1,5 +1,6 @@
 """
 """
+import numpy as np
 import scipy.io.wavfile as wav
 
 from python_speech_features import mfcc
@@ -16,7 +17,13 @@ class WavFeatures(object):
         self._window_size = None
         self._window_step = None
 
-    def load(self, path, window_size=0.025, window_step=0.01, numcep=13):
+    def load(self,
+             path,
+             window_size=0.025,
+             window_step=0.01,
+             numcep=13,
+             feature_mean=np.zeros((13)),
+             feature_std=np.ones((13))):
         """
         """
         self._window_size = window_size
@@ -33,6 +40,8 @@ class WavFeatures(object):
             winlen=window_size,
             winstep=window_step,
             numcep=numcep)
+
+        self._features = (self._features - feature_mean) / feature_std
 
     def feature_shape(self):
         """

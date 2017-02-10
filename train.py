@@ -59,7 +59,9 @@ def train(params, model, context):
                 data_wav_path,
                 window_size=wav_window_size_second,
                 window_step=wav_window_step_second,
-                numcep=params.get_wav_cepstrum_size())
+                numcep=params.get_wav_cepstrum_size(),
+                feature_mean=params.get_wav_feature_mean(),
+                feature_std=params.get_wav_feature_std())
             train_srt.load(data_srt_path, wav_sample_rate)
 
             if train_wav.feature_size() > sequence_size:
@@ -121,7 +123,9 @@ def test(params, model, context):
         data_wav_path,
         window_size=wav_window_size_second,
         window_step=wav_window_step_second,
-        numcep=params.get_wav_cepstrum_size())
+        numcep=params.get_wav_cepstrum_size(),
+        feature_mean=params.get_wav_feature_mean(),
+        feature_std=params.get_wav_feature_std())
     train_srt.load(data_srt_path, wav_sample_rate)
 
     wav_features = train_wav.features()
