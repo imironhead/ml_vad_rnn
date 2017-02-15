@@ -45,6 +45,16 @@ class Parameters(object):
 
         return param
 
+    @staticmethod
+    def leaky_relu(x, leak=0.2, name="lrelu"):
+        """
+        https://github.com/tensorflow/tensorflow/issues/4079
+        """
+        with tf.variable_scope(name):
+            f1 = 0.5 * (1.0 + leak)
+            f2 = 0.5 * (1.0 - leak)
+            return f1 * x + f2 * abs(x)
+
     def __init__(self):
         """
         """
@@ -70,10 +80,6 @@ class Parameters(object):
 
         self._head_hidden_layers_bias = param['head_hidden_layers_bias']
         self._tail_hidden_layers_bias = param['tail_hidden_layers_bias']
-        self._head_hidden_layers_nonlinear = \
-            param['head_hidden_layers_nonlinear']
-        self._tail_hidden_layers_nonlinear = \
-            param['tail_hidden_layers_nonlinear']
 
         self._nn_hidden_layer_before_rnn = param['head_hidden_layers']
         self._nn_hidden_layer_after_rnn = param['tail_hidden_layers']
@@ -251,15 +257,29 @@ class Parameters(object):
         """
         return self._srt_delay_size
 
-    def get_non_linear_gate_before_rnn(self):
+    def get_activation_before_rnn(self):
         """
         """
-        return str(self._head_hidden_layers_nonlinear)
+        name = self._params['head_hidden_layers_activation']
 
-    def get_non_linear_gate_after_rnn(self):
+        if name == 'tanh':
+            return tf.tanh
+        elif name == 'lrelu':
+            return Parameters.leaky_relu
+        else:
+            return tf.nn.relu
+
+    def get_activation_after_rnn(self):
         """
         """
-        return str(self._tail_hidden_layers_nonlinear)
+        name = self._params['tail_hidden_layers_activation']
+
+        if name == 'tanh':
+            return tf.tanh
+        elif name == 'lrelu':
+            return Parameters.leaky_relu
+        else:
+            return tf.nn.relu
 
     def get_hidden_layer_dim_before_rnn(self):
         """
@@ -330,26 +350,6 @@ class Parameters(object):
         """
         """
         return self._params.get('tail_hidden_layers_residual', False)
-
-    def should_use_relu_before_rnn(self):
-        """
-        """
-        return self._head_hidden_layers_nonlinear == 'relu'
-
-    def should_use_tanh_before_rnn(self):
-        """
-        """
-        return self._head_hidden_layers_nonlinear == 'tanh'
-
-    def should_use_relu_after_rnn(self):
-        """
-        """
-        return self._tail_hidden_layers_nonlinear == 'relu'
-
-    def should_use_tanh_after_rnn(self):
-        """
-        """
-        return self._tail_hidden_layers_nonlinear == 'tanh'
 
     def should_dropout_after_rnn(self):
         """
