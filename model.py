@@ -159,10 +159,7 @@ class VadModel(object):
                 source = source + b
 
             if idx + 1 < len(dims):
-                if params.should_use_relu_before_rnn():
-                    source = tf.nn.relu(source)
-                elif params.should_use_tanh_before_rnn():
-                    source = tf.tanh(source)
+                source = params.get_activation_before_rnn()(source)
 
             if idx == 0:
                 residual = source
@@ -216,10 +213,7 @@ class VadModel(object):
                 source = source + b
 
             if idx + 1 < len(dims):
-                if params.should_use_relu_after_rnn():
-                    source = tf.nn.relu(source)
-                elif params.should_use_tanh_after_rnn():
-                    source = tf.tanh(source)
+                source = params.get_activation_after_rnn()(source)
 
             if idx == 0:
                 residual = source
