@@ -1,6 +1,7 @@
 """
 """
 import json
+import numpy as np
 import os
 import sys
 import tensorflow as tf
@@ -88,19 +89,44 @@ class Parameters(object):
         Parameters.make_dir(self._checkpoint_source_path)
         Parameters.make_dir(self._tensorboard_log_root)
 
-        self._dir_cue_training = './datasets/cue/{}/training/'.format(
-            self._wav_sample_rate)
-        self._dir_cue_validate = './datasets/cue/{}/validate/'.format(
-            self._wav_sample_rate)
-        self._dir_cue_test = './datasets/cue/{}/test/'.format(
-            self._wav_sample_rate)
+        path_home = os.path.expanduser('~')
+
+        self._dir_cue_training = os.path.join(
+            path_home, 'data/vad/{}/'.format(self._wav_sample_rate))
+        self._dir_cue_test = os.path.join(
+            path_home, 'data/vad/{}_test/'.format(self._wav_sample_rate))
 
         if not os.path.isdir(self._dir_cue_training):
             raise Exception('need training dir')
-        if not os.path.isdir(self._dir_cue_validate):
-            raise Exception('need validate dir')
         if not os.path.isdir(self._dir_cue_test):
             raise Exception('need test dir')
+
+        self.load_std_mean(param)
+
+    def load_std_mean(self, param):
+        """
+        """
+        path_home = os.path.expanduser('~')
+
+        name_std_mean = 'mean_std_{}_{}_{}.npz'.format(
+            param['wav_window_size'],
+            param['wav_window_step'],
+            param['wav_cepstrum_size'])
+
+        path_std_mean = os.path.join(
+            path_home,
+            'data/vad/{}/{}'.format(param['wav_sample_rate'], name_std_mean))
+
+        if not os.path.isfile(path_std_mean):
+            raise Exception('{} need to be prepared'.format(path_std_mean))
+
+        std_mean = np.load(path_std_mean)
+
+        self._params['wav_feature_mean'] = std_mean['mean']
+        self._params['wav_feature_std'] = std_mean['std']
+
+        print 'wav_feature_mean: {}'.format(std_mean['mean'])
+        print 'wav_feature_std: {}'.format(std_mean['std'])
 
     def get_movie_path(self):
         """
@@ -204,6 +230,22 @@ class Parameters(object):
         """
         return self._wav_window_step
 
+    def get_wav_feature_mean(self):
+        """
+        """
+        wav_cepstrum_size = self._params['wav_cepstrum_size']
+
+        return self._params.get(
+            'wav_feature_mean', np.zeros((wav_cepstrum_size)))
+
+    def get_wav_feature_std(self):
+        """
+        """
+        wav_cepstrum_size = self._params['wav_cepstrum_size']
+
+        return self._params.get(
+            'wav_feature_std', np.ones((wav_cepstrum_size)))
+
     def get_srt_delay_size(self):
         """
         """
@@ -253,11 +295,6 @@ class Parameters(object):
         """
         """
         return self._dir_cue_training
-
-    def get_dir_cue_validate(self):
-        """
-        """
-        return self._dir_cue_validate
 
     def get_dir_cue_test(self):
         """
