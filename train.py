@@ -57,6 +57,7 @@ def train(params, model, context):
 
             train_wav.load(
                 data_wav_path,
+                feature_type=params.get_wav_feature_type(),
                 window_size=wav_window_size_second,
                 window_step=wav_window_step_second,
                 numcep=params.get_wav_cepstrum_size(),
@@ -121,6 +122,7 @@ def test(params, model, context):
 
     train_wav.load(
         data_wav_path,
+        feature_type=params.get_wav_feature_type(),
         window_size=wav_window_size_second,
         window_step=wav_window_step_second,
         numcep=params.get_wav_cepstrum_size(),

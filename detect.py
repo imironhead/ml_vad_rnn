@@ -26,9 +26,12 @@ input_wav = WavFeatures()
 
 input_wav.load(
     source_wav,
+    feature_type=params.get_wav_feature_type(),
     window_size=wav_window_size_second,
     window_step=wav_window_step_second,
-    numcep=params.get_wav_cepstrum_size())
+    numcep=params.get_wav_cepstrum_size(),
+    feature_mean=params.get_wav_feature_mean(),
+    feature_std=params.get_wav_feature_std())
 
 wav_features = input_wav.features()
 
