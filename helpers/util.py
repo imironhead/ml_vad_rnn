@@ -1,5 +1,6 @@
 """
 """
+import hashlib
 import os
 
 
@@ -9,6 +10,16 @@ def make_dir(path):
     """
     if not os.path.isdir(path):
         os.makedirs(path)
+
+
+def md5(fname):
+    hash_md5 = hashlib.md5()
+
+    with open(fname, 'rb') as f:
+        for chunk in iter(lambda: f.read(4096), b''):
+            hash_md5.update(chunk)
+
+    return hash_md5.hexdigest()
 
 
 def enum_audio_files(source_dir):
