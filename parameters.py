@@ -71,7 +71,6 @@ class Parameters(object):
         self._regularization_lambda = param['regularization_lambda']
 
         self._wav_sample_rate = param['wav_sample_rate']
-        self._wav_feature = param['wav_feature']
         self._wav_cepstrum_size = param['wav_cepstrum_size']
         self._wav_window_size = param['wav_window_size']
         self._wav_window_step = param['wav_window_step']
@@ -114,7 +113,8 @@ class Parameters(object):
         """
         path_home = os.path.expanduser('~')
 
-        name_std_mean = 'mean_std_{}_{}_{}.npz'.format(
+        name_std_mean = 'mean_std_{}_{}_{}_{}.npz'.format(
+            param['wav_feature'],
             param['wav_window_size'],
             param['wav_window_step'],
             param['wav_cepstrum_size'])
@@ -123,16 +123,19 @@ class Parameters(object):
             path_home,
             'data/vad/{}/{}'.format(param['wav_sample_rate'], name_std_mean))
 
-        if not os.path.isfile(path_std_mean):
-            raise Exception('{} need to be prepared'.format(path_std_mean))
+        if os.path.isfile(path_std_mean):
+            std_mean = np.load(path_std_mean)
 
-        std_mean = np.load(path_std_mean)
+            self._params['wav_feature_mean'] = std_mean['mean']
+            self._params['wav_feature_std'] = std_mean['std']
+        else:
+            feature_size = param['wav_cepstrum_size']
 
-        self._params['wav_feature_mean'] = std_mean['mean']
-        self._params['wav_feature_std'] = std_mean['std']
+            self._params['wav_feature_mean'] = np.zeros((feature_size))
+            self._params['wav_feature_std'] = np.ones((feature_size))
 
-        print 'wav_feature_mean: {}'.format(std_mean['mean'])
-        print 'wav_feature_std: {}'.format(std_mean['std'])
+        print 'wav_feature_mean: {}'.format(self._params['wav_feature_mean'])
+        print 'wav_feature_std: {}'.format(self._params['wav_feature_std'])
 
     def get_movie_path(self):
         """
@@ -216,10 +219,10 @@ class Parameters(object):
         """
         return self._wav_sample_rate
 
-    def get_wav_feature(self):
+    def get_wav_feature_type(self):
         """
         """
-        return str(self._wav_feature)
+        return self._params['wav_feature']
 
     def get_wav_cepstrum_size(self):
         """
@@ -325,11 +328,6 @@ class Parameters(object):
         """
         """
         return self._optimizer == 'adam'
-
-    def should_use_mfcc(self):
-        """
-        """
-        return self._wav_feature == 'mfcc'
 
     def should_add_bias_before_rnn(self):
         """

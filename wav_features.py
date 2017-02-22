@@ -19,6 +19,7 @@ class WavFeatures(object):
 
     def load(self,
              path,
+             feature_type='mfcc',
              window_size=0.025,
              window_step=0.01,
              numcep=13,
@@ -34,14 +35,26 @@ class WavFeatures(object):
         if len(self._features.shape) > 1:
             self._features = self._features[:, 0]
 
-        self._features = mfcc(
-            self._features,
-            self._sample_rate,
-            winlen=window_size,
-            winstep=window_step,
-            numcep=numcep)
+        if feature_type == 'mfcc':
+            self._features = mfcc(
+                self._features,
+                self._sample_rate,
+                winlen=window_size,
+                winstep=window_step,
+                numcep=numcep)
+        else:
+            # 'raw'
+            w_step = int(self._sample_rate * window_step)
+            w_size = numcep
+            d_size = len(self._features)
 
-        self._features = (self._features - feature_mean) / feature_std
+            self._features = [self._features[i:i+w_size]
+                              for i in xrange(0, d_size - w_size + 1, w_step)]
+
+            self._features = np.vstack(self._features)
+
+        self._features -= feature_mean
+        self._features /= feature_std
 
     def feature_shape(self):
         """
