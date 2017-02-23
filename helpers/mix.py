@@ -198,6 +198,9 @@ def main():
     for t in xrange(0, duration_total, duration_segment):
         mix(target_mix, sample_rate, duration_segment, g_bgs, g_fgs)
 
+        if (t / duration_segment) % 100 == 0:
+            print 'progress: {} / {}'.format(t, duration_total)
+
 
 if __name__ == '__main__':
     main()
