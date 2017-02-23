@@ -30,6 +30,13 @@ def enum_audio_files(source_dir):
             if n.endswith('.mp3') or n.endswith('.wav')]
 
 
+def enum_wav_files(source_dir):
+    """
+    enum all wav files in a specific directory.
+    """
+    return [n for n in os.listdir(source_dir) if n.endswith('.wav')]
+
+
 def raw_sound_path(fg_or_bg='raw_fgs', sample_rate=None):
     """
     return path to the directory that comtains the raw sound with specific
@@ -54,3 +61,11 @@ def foreground_raw_sound_path(sample_rate=None):
     return path to the directory that contains raw foreground sound files.
     """
     return raw_sound_path('raw_fgs', sample_rate)
+
+
+def mix_sound_path(sample_rate):
+    """
+    """
+    return os.path.join(
+        os.path.expanduser('~'),
+        'data/vad/{}/'.format(sample_rate))
