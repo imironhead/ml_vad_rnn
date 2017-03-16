@@ -60,6 +60,17 @@ class Parameters(object):
         """
         self._params = param = Parameters.arg()
 
+        self._params['wav_sample_rate'] = int(self._params['wav_sample_rate'])
+        self._params['srt_delay_size'] = int(
+            self._params['wav_sample_rate'] *
+            float(self._params['srt_delay_size_s']))
+        self._params['wav_window_size'] = int(
+            self._params['wav_sample_rate'] *
+            float(self._params['wav_window_size_s']))
+        self._params['wav_window_step'] = int(
+            self._params['wav_sample_rate'] *
+            float(self._params['wav_window_step_s']))
+
         self._session_name = param['session_name']
         self._model_name = param['model_name']
         self._epoch_size = param['epoch_size']
@@ -69,13 +80,6 @@ class Parameters(object):
         self._optimizer = param['optimizer']
         self._learning_rate = param['learning_rate']
         self._regularization_lambda = param['regularization_lambda']
-
-        self._wav_sample_rate = param['wav_sample_rate']
-        self._wav_cepstrum_size = param['wav_cepstrum_size']
-        self._wav_window_size = param['wav_window_size']
-        self._wav_window_step = param['wav_window_step']
-
-        self._srt_delay_size = param['srt_delay_size']
 
         self._head_hidden_layers_bias = param['head_hidden_layers_bias']
         self._tail_hidden_layers_bias = param['tail_hidden_layers_bias']
@@ -97,9 +101,10 @@ class Parameters(object):
         path_home = os.path.expanduser('~')
 
         self._dir_cue_training = os.path.join(
-            path_home, 'data/vad/{}/'.format(self._wav_sample_rate))
+            path_home, 'data/vad/{}/'.format(self._params['wav_sample_rate']))
         self._dir_cue_test = os.path.join(
-            path_home, 'data/vad/{}_test/'.format(self._wav_sample_rate))
+            path_home,
+            'data/vad/{}_test/'.format(self._params['wav_sample_rate']))
 
         if not os.path.isdir(self._dir_cue_training):
             raise Exception('need training dir')
@@ -217,7 +222,7 @@ class Parameters(object):
     def get_wav_sample_rate(self):
         """
         """
-        return self._wav_sample_rate
+        return self._params['wav_sample_rate']
 
     def get_wav_feature_type(self):
         """
@@ -227,17 +232,17 @@ class Parameters(object):
     def get_wav_cepstrum_size(self):
         """
         """
-        return self._wav_cepstrum_size
+        return self._params['wav_cepstrum_size']
 
     def get_wav_window_size(self):
         """
         """
-        return self._wav_window_size
+        return self._params['wav_window_size']
 
     def get_wav_window_step(self):
         """
         """
-        return self._wav_window_step
+        return self._params['wav_window_step']
 
     def get_wav_feature_mean(self):
         """
@@ -258,7 +263,7 @@ class Parameters(object):
     def get_srt_delay_size(self):
         """
         """
-        return self._srt_delay_size
+        return self._params['srt_delay_size']
 
     def get_activation_before_rnn(self):
         """
