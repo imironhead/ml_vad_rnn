@@ -209,6 +209,9 @@ class Parameters(object):
                 use_peepholes=self._params['lstm_use_peephole'],
                 forget_bias=self._params['lstm_forget_bias'],
                 state_is_tuple=True)
+        elif self._params['rnn_cell'] == 'gru':
+            rnn_cell = tf.nn.rnn_cell.GRUCell(
+                self._params['rnn_unit_num'])
 
         if self._params['rnn_layers'] > 1:
             rnn_cell = tf.nn.rnn_cell.MultiRNNCell(
