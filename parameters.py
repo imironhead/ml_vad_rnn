@@ -71,6 +71,9 @@ class Parameters(object):
             self._params['wav_sample_rate'] *
             float(self._params['wav_window_step_s']))
 
+        # sanity check, we want at least one layer.
+        self._params['rnn_layers'] = int(self._params.get('rnn_layers', 1))
+
         self._session_name = param['session_name']
         self._model_name = param['model_name']
         self._epoch_size = param['epoch_size']
@@ -206,6 +209,10 @@ class Parameters(object):
                 use_peepholes=self._params['lstm_use_peephole'],
                 forget_bias=self._params['lstm_forget_bias'],
                 state_is_tuple=True)
+
+        if self._params['rnn_layers'] > 1:
+            rnn_cell = tf.nn.rnn_cell.MultiRNNCell(
+                [rnn_cell] * self._params['rnn_layers'], state_is_tuple=True)
 
         return rnn_cell
 
