@@ -170,6 +170,11 @@ def build_summaries(classifier):
 def main(_):
     """
     """
+    checkpoint_source_path = tf.train.latest_checkpoint(
+        FLAGS.checkpoints_dir_path)
+    checkpoint_target_path = os.path.join(
+        FLAGS.checkpoints_dir_path, 'model.ckpt')
+
     classifier = Classifier(FLAGS.vgg19_path)
 
     summaries = build_summaries(classifier)
@@ -181,8 +186,10 @@ def main(_):
     # XLA
 
     with tf.Session() as session:
-        session.run(tf.global_variables_initializer())
-        session.run(tf.local_variables_initializer())
+        if checkpoint_source_path is None:
+            session.run(tf.global_variables_initializer())
+        else:
+            tf.train.Saver().restore(session, checkpoint_source_path)
 
         while True:
             labels, images = reader.next_batch(64)
@@ -204,6 +211,12 @@ def main(_):
             reporter.add_summary(summary, step)
 
             print('[{}]: {}'.format(step, loss))
+
+            if step % 1000 == 0:
+                tf.train.Saver().save(
+                    session,
+                    checkpoint_target_path,
+                    global_step=classifier.global_step)
 
 
 if __name__ == '__main__':
