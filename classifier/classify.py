@@ -8,6 +8,9 @@ import tensorflow as tf
 from six.moves import range
 from vggnet import VggNet
 
+tf.app.flags.DEFINE_string(
+    'checkpoints-dir-path', './classifier/checkpoints/', '')
+tf.app.flags.DEFINE_string('logs-dir-path', './classifier/logs/', '')
 tf.app.flags.DEFINE_string('train-data-path', None, '')
 tf.app.flags.DEFINE_string('vgg19-path', None, '')
 tf.app.flags.DEFINE_integer('batch-size', 128, '')
@@ -123,11 +126,18 @@ class Classifier(object):
             loss,
             global_step=global_step)
 
+        # metrics
+        predictions = tf.argmax(batch_tensors, axis=1)
+        predictions = tf.cast(predictions, dtype=tf.int32)
+
+        metrics_accuracy = tf.contrib.metrics.accuracy(predictions, labels)
+
         self._properties = {
             # fetch
             'global_step': global_step,
             'loss': loss,
             'trainer': trainer,
+            'metrics_accuracy': metrics_accuracy,
 
             # feed
             'images': images,
@@ -144,17 +154,35 @@ class Classifier(object):
             raise Exception('invalid property: {}'.format(name))
 
 
+def build_summaries(classifier):
+    """
+    """
+    summary_metrics = tf.summary.merge([
+        tf.summary.scalar('metrics/loss', classifier.loss),
+        tf.summary.scalar('metrics/accuracy', classifier.metrics_accuracy),
+    ])
+
+    return {
+        'summary_metrics': summary_metrics,
+    }
+
+
 def main(_):
     """
     """
     classifier = Classifier(FLAGS.vgg19_path)
 
+    summaries = build_summaries(classifier)
+
     reader = SpectrogramSamples(FLAGS.train_data_path)
+
+    reporter = tf.summary.FileWriter(FLAGS.logs_dir_path)
 
     # XLA
 
     with tf.Session() as session:
         session.run(tf.global_variables_initializer())
+        session.run(tf.local_variables_initializer())
 
         while True:
             labels, images = reader.next_batch(64)
@@ -163,6 +191,7 @@ def main(_):
                 classifier.loss,
                 classifier.global_step,
                 classifier.trainer,
+                summaries['summary_metrics'],
             ]
 
             feeds = {
@@ -170,7 +199,9 @@ def main(_):
                 classifier.labels: labels,
             }
 
-            loss, step, _ = session.run(fetch, feeds)
+            loss, step, _, summary = session.run(fetch, feeds)
+
+            reporter.add_summary(summary, step)
 
             print('[{}]: {}'.format(step, loss))
 
