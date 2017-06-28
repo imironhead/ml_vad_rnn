@@ -4,8 +4,15 @@ import numpy as np
 import numpy.lib.stride_tricks as stride_tricks
 import os
 import scipy.io.wavfile as wav
+import tensorflow as tf
 
 from spectrogram import generate_spectrogram
+
+
+tf.app.flags.DEFINE_string('source-dir-path', None, '')
+tf.app.flags.DEFINE_string('target-dir-path', None, '')
+
+FLAGS = tf.app.flags.FLAGS
 
 
 def wav_stream(path, size, infinite=True):
@@ -64,6 +71,53 @@ def spectrogram_stream(
     """
     audio for prediction, no manipulation, empty labels
     """
+    # assume frequency_size is even
+    window_size = frequency_size * 2 - 2
+
+    # sample queues
+    wav_samples = []
+
+    # size lower bound to generate next batch
+    num_bins = img_step_bins * (batch_size - 1) + frequency_size
+    reserved = (num_bins - 1) * bin_step_size + window_size
+
+    # size to drop from sample queues after each batch (there are used)
+    batch_step_size = batch_size * img_step_bins * bin_step_size
+
+    while True:
+        # pull samples from sources to fill sample queues.
+        while len(wav_samples) < reserved:
+            new_wav_samples = next(wav_generator)
+
+            wav_samples = np.concatenate([wav_samples, new_wav_samples])
+
+        # generate new spectrograms
+        wav_spectrogram = generate_spectrogram(
+            wav_samples[:reserved], window_size, bin_step_size)
+
+        # drop used samples
+        wav_samples = wav_samples[batch_step_size:]
+
+        shape = (batch_size, frequency_size, frequency_size)
+
+        strides = (
+            wav_spectrogram.strides[1] * img_step_bins,
+            wav_spectrogram.strides[0],
+            wav_spectrogram.strides[1],
+        )
+
+        # reshape large/single spectrograms to batches.
+        wav_spectrogram = stride_tricks.as_strided(
+            wav_spectrogram, shape=shape, strides=strides)
+
+        wav_spectrogram = np.vstack(wav_spectrogram)
+
+        wav_spectrogram = np.reshape(
+            wav_spectrogram, (batch_size, frequency_size, frequency_size, 1))
+
+        yield {
+            'images': wav_spectrogram,
+        }
 
 
 def mixer_spectrogram_stream(
@@ -162,25 +216,26 @@ if __name__ == '__main__':
     # simple test
     import scipy.misc
 
-    frequency_size = 128
-    img_step_bins = 64
+    for frequency_size in [128, 256]:
+        for bin_step_size in [32, 64, 128]:
+            wav_generator = wav_stream(
+                FLAGS.source_dir_path, 1024, infinite=False)
 
-    bgs_path = '/Users/lronheadChuang/datasets/vad/raw_bgs_5000/'
-    fgs_path = '/Users/lronheadChuang/datasets/vad/raw_fgs_5000/'
+            stream = spectrogram_stream(
+                wav_generator,
+                batch_size=1,
+                frequency_size=frequency_size,
+                bin_step_size=bin_step_size,
+                img_step_bins=frequency_size)
 
-    bgs_generator = wav_stream(bgs_path, 1024)
-    fgs_generator = wav_stream(fgs_path, 1024)
+            for i, batch in enumerate(stream):
+                for j, image in enumerate(batch['images']):
+                    new_path = os.path.join(
+                        FLAGS.target_dir_path, '{}_{}_{:04}_{:04}.png'.format(
+                            frequency_size, bin_step_size, i, j))
 
-    stream = mixer_spectrogram_stream(
-        bgs_generator, fgs_generator, batch_size=64,
-        frequency_size=frequency_size, bin_step_size=100,
-        img_step_bins=img_step_bins)
+                    image = np.reshape(image, [frequency_size] * 2)
 
-    for i in range(2):
-        batch = next(stream)
+                    scipy.misc.imsave(new_path, image)
 
-        for j, image in enumerate(batch['images']):
-            o_path = './test/{:04}_{:04}.png'.format(i, j)
-
-            scipy.misc.imsave(
-                o_path, np.reshape(image, (frequency_size, frequency_size)))
+                    print(new_path)
