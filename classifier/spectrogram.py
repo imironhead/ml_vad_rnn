@@ -125,5 +125,7 @@ if __name__ == '__main__':
         for j, image in enumerate(batch):
             o_path = './test/{:04}_{:04}.png'.format(i, j)
 
+            image += 120.0
+
             scipy.misc.imsave(
                 o_path, np.reshape(image, (frequency_size, frequency_size)))
