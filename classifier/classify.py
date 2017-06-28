@@ -1,222 +1,113 @@
 """
 """
-import numpy as np
 import os
-import scipy.misc
 import tensorflow as tf
 
-from six.moves import range
-from vggnet import VggNet
+from classifier import Classifier
+from spectrogram_streams import wav_stream, spectrogram_stream
 
-tf.app.flags.DEFINE_string(
-    'checkpoints-dir-path', './classifier/checkpoints/', '')
-tf.app.flags.DEFINE_string('logs-dir-path', './classifier/logs/', '')
-tf.app.flags.DEFINE_string('train-data-path', None, '')
-tf.app.flags.DEFINE_string('vgg19-path', None, '')
-tf.app.flags.DEFINE_integer('batch-size', 128, '')
+tf.app.flags.DEFINE_string('ckpt-dir-path', './classifier/ckpts/', '')
+tf.app.flags.DEFINE_string('wav-data-path', None, '')
+tf.app.flags.DEFINE_string('srt-result-path', None, '')
+tf.app.flags.DEFINE_integer('batch-size', 64, '')
+tf.app.flags.DEFINE_integer('bin-step-size', 100, '')
+tf.app.flags.DEFINE_integer('img-step-bins', 128, '')
+tf.app.flags.DEFINE_integer('spectrogram-size', 128, '')
+tf.app.flags.DEFINE_integer('sample-rate', 4000, '')
 
 FLAGS = tf.app.flags.FLAGS
 
 
-class SpectrogramSamples(object):
+class SrtWriter(object):
+    @staticmethod
+    def timestamp(idx, step, sample_rate):
+        """
+        """
+        t = idx * step * 1000 / sample_rate
+
+        H, t = t / 3600000, t % 3600000
+        M, t = t / 60000, t % 60000
+        S, m = t / 1000, t % 1000
+
+        return "{}:{}:{},{}".format(H, M, S, m)
+
+    @staticmethod
+    def save(path, features, sample_rate, window_step):
+        """
+        """
+        with open(path, 'w') as srt:
+            caption_idx = 0
+            feature_idx = 0
+
+            while True:
+                while True:
+                    if feature_idx >= len(features):
+                        break
+                    if features[feature_idx] == 1:
+                        break
+                    feature_idx += 1
+
+                if feature_idx >= len(features):
+                    break
+
+                time_head = \
+                    SrtWriter.timestamp(feature_idx, window_step, sample_rate)
+
+                while True:
+                    if feature_idx >= len(features):
+                        break
+                    if features[feature_idx] == 0:
+                        break
+                    feature_idx += 1
+
+                time_tail = \
+                    SrtWriter.timestamp(feature_idx, window_step, sample_rate)
+
+                srt.write("{}\n".format(caption_idx))
+                srt.write("{} --> {}\n".format(time_head, time_tail))
+                srt.write("!@#$%^\n\n")
+
+                caption_idx += 1
+
+
+def predict():
     """
     """
-    def __init__(self, path):
-        """
-        """
-        self._paths = [os.path.join(path, n)
-                       for n in os.listdir(path) if n.endswith('.png')]
+    wav_generator = wav_stream(FLAGS.wav_data_path, 1024, infinite=False)
 
-        self._indice = np.random.permutation(len(self._paths))
+    data_stream = spectrogram_stream(
+        wav_generator, batch_size=FLAGS.batch_size,
+        frequency_size=FLAGS.spectrogram_size,
+        bin_step_size=FLAGS.bin_step_size, img_step_bins=FLAGS.img_step_bins)
 
-        self._indice_position = 0
+    checkpoint_source_path = tf.train.latest_checkpoint(
+        FLAGS.ckpt_dir_path)
 
-        self._samples = []
+    masks = []
 
-    def next_batch(self, size=64):
-        """
-        """
-        images = np.zeros((size, 224, 224))
-        labels = np.ones(size, dtype=np.int32)
+    model = Classifier(FLAGS.spectrogram_size)
 
-        for i in range(size):
-            if self._indice_position == len(self._indice):
-                self._indice_position = 0
+    if not os.path.isfile(checkpoint_source_path):
+        raise Exception('invalid ckpt: {}'.format(checkpoint_source_path))
 
-                np.random.shuffle(self._indice)
+    with tf.Session() as session:
+        tf.train.Saver().restore(session, checkpoint_source_path)
 
-            image_path = self._paths[self._indice_position]
+        for batch in data_stream:
+            feeds = {model.images: batch['images']}
 
-            is_voice = (image_path[-38] == '1')
+            predictions = session.run(model.predictions, feeds)
 
-            self._indice_position += 1
+            masks.extend(predictions)
 
-            images[i] = scipy.misc.imread(image_path)
-
-            labels[i] = 1 if is_voice else 0
-
-        images = np.reshape(images, (size, 224, 224, 1))
-
-        return labels, images
-
-
-class Classifier(object):
-    """
-    """
-    def __init__(self, vgg19_path):
-        """
-        """
-        weights_initializer = tf.truncated_normal_initializer(stddev=0.02)
-
-        global_step = tf.get_variable(
-            name='global_step',
-            shape=[],
-            dtype=tf.int32,
-            initializer=tf.constant_initializer(0, dtype=tf.int32),
-            trainable=False)
-
-        images = tf.placeholder(shape=[None, 224, 224, 1], dtype=tf.float32)
-
-        labels = tf.placeholder(shape=[None], dtype=tf.int32)
-
-        batch_tensors = images
-
-        # 1 channel to 3 channels for vgg
-        batch_tensors = tf.contrib.layers.convolution2d(
-            inputs=batch_tensors,
-            num_outputs=3,
-            kernel_size=5,
-            stride=1,
-            padding='SAME',
-            activation_fn=tf.nn.relu,
-            normalizer_fn=tf.contrib.layers.batch_norm,
-            weights_initializer=weights_initializer,
-            scope='upstream')
-
-        # connect to vgg
-        vgg = VggNet.build_19(vgg19_path, batch_tensors, end_layer='fc7')
-
-        batch_tensors = vgg.downstream
-
-        batch_tensors = tf.contrib.layers.flatten(batch_tensors)
-
-        #
-        batch_tensors = tf.contrib.layers.fully_connected(
-            inputs=batch_tensors,
-            num_outputs=4096,
-            activation_fn=tf.nn.relu,
-            normalizer_fn=tf.contrib.layers.batch_norm,
-            weights_initializer=weights_initializer,
-            scope='mfc7')
-
-        batch_tensors = tf.contrib.layers.fully_connected(
-            inputs=batch_tensors,
-            num_outputs=2,
-            weights_initializer=weights_initializer,
-            scope='mfc8')
-
-        loss = tf.contrib.losses.softmax_cross_entropy(
-            logits=batch_tensors,
-            onehot_labels=tf.one_hot(labels, 2))
-
-        trainer = tf.train.AdamOptimizer(
-            learning_rate=0.001, beta1=0.5, beta2=0.9)
-
-        trainer = trainer.minimize(
-            loss,
-            global_step=global_step)
-
-        # metrics
-        predictions = tf.argmax(batch_tensors, axis=1)
-        predictions = tf.cast(predictions, dtype=tf.int32)
-
-        metrics_accuracy = tf.contrib.metrics.accuracy(predictions, labels)
-
-        self._properties = {
-            # fetch
-            'global_step': global_step,
-            'loss': loss,
-            'trainer': trainer,
-            'metrics_accuracy': metrics_accuracy,
-
-            # feed
-            'images': images,
-            'labels': labels,
-        }
-
-    def __getattr__(self, name):
-        """
-        The properties of this net.
-        """
-        if name in self._properties:
-            return self._properties[name]
-        else:
-            raise Exception('invalid property: {}'.format(name))
-
-
-def build_summaries(classifier):
-    """
-    """
-    summary_metrics = tf.summary.merge([
-        tf.summary.scalar('metrics/loss', classifier.loss),
-        tf.summary.scalar('metrics/accuracy', classifier.metrics_accuracy),
-    ])
-
-    return {
-        'summary_metrics': summary_metrics,
-    }
+    SrtWriter.save(
+        FLAGS.srt_result_path, masks, FLAGS.sample_rate, FLAGS.img_step_bins)
 
 
 def main(_):
     """
     """
-    checkpoint_source_path = tf.train.latest_checkpoint(
-        FLAGS.checkpoints_dir_path)
-    checkpoint_target_path = os.path.join(
-        FLAGS.checkpoints_dir_path, 'model.ckpt')
-
-    classifier = Classifier(FLAGS.vgg19_path)
-
-    summaries = build_summaries(classifier)
-
-    reader = SpectrogramSamples(FLAGS.train_data_path)
-
-    reporter = tf.summary.FileWriter(FLAGS.logs_dir_path)
-
-    # XLA
-
-    with tf.Session() as session:
-        if checkpoint_source_path is None:
-            session.run(tf.global_variables_initializer())
-        else:
-            tf.train.Saver().restore(session, checkpoint_source_path)
-
-        while True:
-            labels, images = reader.next_batch(64)
-
-            fetch = [
-                classifier.loss,
-                classifier.global_step,
-                classifier.trainer,
-                summaries['summary_metrics'],
-            ]
-
-            feeds = {
-                classifier.images: images,
-                classifier.labels: labels,
-            }
-
-            loss, step, _, summary = session.run(fetch, feeds)
-
-            reporter.add_summary(summary, step)
-
-            print('[{}]: {}'.format(step, loss))
-
-            if step % 1000 == 0:
-                tf.train.Saver().save(
-                    session,
-                    checkpoint_target_path,
-                    global_step=classifier.global_step)
+    predict()
 
 
 if __name__ == '__main__':
